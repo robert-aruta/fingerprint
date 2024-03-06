@@ -4,3 +4,5 @@
 # sudo apt-get clean
 
 pip install opencv_contrib_python
+sudo apt-get install libgl1
+sudo ldconfig
