@@ -44,7 +44,7 @@ def read_fingerprints():
 
     return fingerprints
 
-# Calculate the local gradient for all the fingerprins in the directory
+# Calculate the local gradient for all the fingerprints in the directory
 def calc_sobel(fingerprints):
     
     GxList = []
@@ -156,7 +156,26 @@ def ridge_orientation(GxList, GyList, Gx2List, Gy2List):
         strengthsList.append(strengths)
     
     return orientationsList, strengthsList
+
+def ridge_frequency(fingerprints):
     
+    regionList = []
+    blurRegionList = []
+    xSigList = []
+    
+    for fingerprint, filename in fingerprints:
+        
+        region = fingerprint[10:90, 80:130]
+        regionList.append(region)
+        
+        blurRegion = cv.GaussianBlur(region, (3,3), -1)
+        blurRegionList.append(blurRegion)
+        
+        xSignature = np.sum(blurRegion, 1)
+        xSigList.append(xSignature)
+
+    return regionList, blurRegionList, xSigList
+
 def print_wd():
     # Get the current working directory
     currentDirectory = os.getcwd()
