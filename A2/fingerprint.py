@@ -105,6 +105,7 @@ def threshold_mask(sumList):
         
     return maskList
 
+# Calculates the estimation of the local ridge orientation
 def ridge_orientation(GxList, GyList, Gx2List, Gy2List):
     
     W = (23, 23)
@@ -113,50 +114,48 @@ def ridge_orientation(GxList, GyList, Gx2List, Gy2List):
     GxyList = []
     orientationsList = []
     strengthsList = []
-    diffGxxGyySqrlist = []
-    G2xyListSqr = []
     
+    # Applies boxfilter for all fingerprints in the X Gradient List
     for gx2 in Gx2List:
         
         gxx = cv.boxFilter(gx2, -1, W, normalize = False)
         GxxList.append(gxx)
     
+    # Applies boxfilter for all fingerprints in the Y Gradient List
     for gy2 in Gy2List:
         
         gyy = cv.boxFilter(gy2, -1, W, normalize = False)
         GyyList.append(gyy)
     
-    
+    # Applies boxfilter after multiplying X and Y gradients
     for gx, gy in zip(GxList, GyList):
         
         gxy = cv.boxFilter(gx * gy, -1, W, normalize = False)
         GxyList.append(gxy)
-          
+    
+    # Substracts each X and Y gradients after being box filtered    
     diffGxxGyyList = [gxx - gyy for gxx, gyy in zip(GxxList, GyyList)]
+    
+    # Multiplies each element in the GxyList by 2
     G2xyList = [2 * gxy for gxy in GxyList]
     
-    for diffgxxgyy, g2xy in zip(diffGxxGyyList, G2xyList):
-        
-        diffGxxGyySqr = diffgxxgyy ** 2
-        diffGxxGyySqrlist.append(diffGxxGyySqr)
-        
-        G2xySqr = g2xy ** 2
-        G2xyListSqr.append(G2xySqr)
-        
-    # for diffgxxgyy, g2xy in zip(diffGxxGyyList, G2xyList):
-        
-    #     orientations = (cv.phase(diffgxxgyy, -g2xy) + np.pi) / 2 # '-' to adjust for y axis direction
-    #     orientationsList.append(orientations)
-        
-    # sumGxxGyyList = [gxx + gyy for gxx, gyy in zip(GxxList, GyyList)]
+    # Sums each X and Y gradients after being box filtered
+    sumGxxGyyList = [gxx + gyy for gxx, gyy in zip(GxxList, GyyList)]
     
-    # for diff_gxx_gyy, g2xy, sum_gxx_gyy, gxx in zip(diffGxxGyyList, G2xyList, sumGxxGyyList, GxxList):
-        
-    #     strengths = np.divide(cv.sqrt((diffgxxgyysqr + g2xysqr)), sum_gxx_gyy, out=np.zeros_like(gxx), where=sum_gxx_gyy !=0)
-    #     strengthsList.append(strengths)
     
-    # print("updated!")
-    return GxyList         #orientationsList, strengthsList
+    for diffGxxGyy, g2xy in zip(diffGxxGyyList, G2xyList):
+        
+        orientations = (cv.phase(diffGxxGyy, -g2xy) + np.pi) / 2 # '-' to adjust for y axis direction
+        orientationsList.append(orientations)
+        
+    
+    
+    for diffGxxGyy, g2xy, sumGxxGyy, gxx in zip(diffGxxGyyList, G2xyList, sumGxxGyyList, GxxList):
+        
+        strengths = np.divide(cv.sqrt(((diffGxxGyy ** 2) + (g2xy ** 2))), sumGxxGyy, out=np.zeros_like(gxx), where=sumGxxGyy !=0)
+        strengthsList.append(strengths)
+    
+    return orientationsList, strengthsList
     
 def print_wd():
     # Get the current working directory
