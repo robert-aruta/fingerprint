@@ -162,20 +162,78 @@ def ridge_frequency(fingerprints):
     regionList = []
     blurRegionList = []
     xSigList = []
+    locMaxList = []
     
     for fingerprint, filename in fingerprints:
         
-        region = fingerprint[10:90, 80:130]
-        regionList.append(region)
+        #region = fingerprint[100:20, 50:150]
+        # w, h = fingerprint.shape
+
+        # startX = (w - cropWidth) // 2
+        # startY = (h - cropHeight) // 2
+        # endX = startX - cropWidth
+        # endY = startY - cropHeight
         
-        blurRegion = cv.GaussianBlur(region, (3,3), -1)
+        # region = fingerprint[startX:endX, 50:endY]
+        # regionList.append(region)
+        w, h = fingerprint.shape
+        cropWidth = int(0.3 * w)
+        cropHeight = int(0.3 * h)
+        endRow = (h - cropHeight) // 2 
+        startRow = endRow - 80
+        cropWidth = int(0.3 * w)
+        cropHeight = int(0.3 * h)
+        middleColumn = (w - cropWidth) // 2
+        startColumn = middleColumn - 25
+        endColumn = middleColumn + 25
+        
+        region = fingerprint[startRow:endRow, startColumn:endColumn]
+        regionList.append(region)
+        # endX = startX + 80
+        # endY = (h - cropHeight) // 2
+        # endY = startY - cropHeight
+        
+        blurRegion = cv.blur(region, (5,5), -1)
         blurRegionList.append(blurRegion)
         
         xSignature = np.sum(blurRegion, 1)
         xSigList.append(xSignature)
+    
+    for xs in xSigList:
+        
+        localMax = np.nonzero(np.r_[False, xs[1:] > xs[:-1]] & np.r_[xs[:-1] >= xs[1:], False])[0]
+        locMaxList.append(localMax)
+        
+    return regionList, locMaxList, xSigList
 
-    return regionList, blurRegionList, xSigList
+def ridge_period(locMaxList):
+    
+    distList = []
+    ridgePeriodList = []
+    
+    for locMax in locMaxList:
+        
+        distance = locMax[1:] - locMax[:-1]
+        distList.append(distance)
+        
+    for distance in distList:
+        
+        ridgePeriod = np.average(distance)
+        ridgePeriodList.append(ridgePeriod)
+        
+    return distList, ridgePeriodList
 
+def gabor_bank(ridgePeriodList):
+    
+    orCount = 8
+    gaborBankList = []
+    
+    for ridgePeriod in ridgePeriodList:
+        
+        gaborBank = [gabor_kernel(ridgePeriod, o) for o in np.arange(0, np.pi, np.pi/orCount)]
+        gaborBankList.append(gaborBank)
+    
+    return gaborBankList
 def print_wd():
     # Get the current working directory
     currentDirectory = os.getcwd()
