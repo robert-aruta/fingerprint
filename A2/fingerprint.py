@@ -19,7 +19,7 @@ import matplotlib.pyplot as plt
 
 from utils import *
 from ipywidgets import interact
-from PyQt5.QtWidgets import *
+#from PyQt5.QtWidgets import *
 
 
 
@@ -249,7 +249,66 @@ def filter_fingerprint(fingerprints, gaborBank):
         filteredFPList.append(fFP)
         
     return filteredFPList, nonfilteredFPList 
+
+def enhance_fingerprint(fingerprintsList, filteredFPList, orientationsList, maskList):
+    
+    enhancedFPList = []
+    xList = []
+    yList = []
+    orientationIdxList = []
+    filteredList = []
+    orCount = 8
+    
+    for fingerprint, filename in fingerprintsList:
         
+        y, x = np.indices(fingerprint.shape)
+        xList.append(x)
+        yList.append(y)
+    
+    for orientations in orientationsList:
+        
+        orientationIdx = np.round(((orientations % np.pi) / np.pi) * orCount).astype(np.int32) % orCount
+        orientationIdxList.append(orientationIdx)
+    
+    for x, y, fFp, orientationIdx in zip(xList, yList, filteredFPList, orientationIdxList):
+        
+        filteredFP = fFp[orientationIdx, y, x]
+        filteredList.append(filteredFP)
+    
+    for mask, filteredFP in zip(maskList, filteredList):
+        
+        enhancedFP = mask & np.clip(filteredFP, 0, 255).astype(np.uint8)
+        enhancedFPList.append(enhancedFP)
+    # for fFp, orientations, mask in zip(filteredFPList, orientationsList, maskList):
+        
+    #     orientationIdx = np.round(((orientations % np.pi) / np.pi) * orCount).astype(np.int32) % orCount
+    #     filterIdx = fFp[orientationIdx, y, x]
+    #     enhancedFP = mask & np.clip(filterIdx, 0, 255).astype(np.unit8)
+    #     enhancedFPList.append(enhancedFP)
+        
+    return enhancedFPList
+
+def ridge_lines(enhancedFPList):
+    
+    ridgeLinesList = []
+    
+    for enhancedFP in enhancedFPList:
+    
+        _, ridgeLines = cv.threshold(enhancedFP, 32, 255, cv.THRESH_BINARY)
+        ridgeLinesList.append(ridgeLines)
+    
+    return ridgeLinesList
+
+def get_skeleton(ridgeLinesList):
+    
+    skeletonList = []
+    
+    for ridgeLines in ridgeLinesList:
+        
+        skeleton = cv.ximgproc.thinning(ridgeLines, thinningType = cv.ximgproc.THINNING_GUOHALL)
+        skeletonList.append(skeleton)
+    
+    return skeletonList
 def print_wd():
     # Get the current working directory
     currentDirectory = os.getcwd()
