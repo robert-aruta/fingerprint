@@ -234,6 +234,22 @@ def gabor_bank(ridgePeriodList):
         gaborBankList.append(gaborBank)
     
     return gaborBankList
+
+def filter_fingerprint(fingerprints, gaborBank):
+    
+    filteredFPList = []
+    nonfilteredFPList = []
+    
+    for fp, filename in fingerprints:
+        
+        nfFP = 255 - fp
+        nonfilteredFPList.append(nfFP)
+        
+        fFP = np.array([cv.filter2D(nfFP, cv.CV_32F, gb) for gb in gaborBank])
+        filteredFPList.append(fFP)
+        
+    return filteredFPList, nonfilteredFPList 
+        
 def print_wd():
     # Get the current working directory
     currentDirectory = os.getcwd()
