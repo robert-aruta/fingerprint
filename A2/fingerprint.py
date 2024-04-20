@@ -1,5 +1,6 @@
 from os import path
 import subprocess
+import threading
 
 if not path.exists('utils.py'): # If running on colab: the first time download and unzip additional files
     
@@ -567,6 +568,12 @@ class LocalStructs:
         # clusters, see eq. (4)-(5) in MCC paper
         return 1. / (1. + np.exp(-self.mccTauPsi * (v - self.mccMuPsi)))
         
+    def thread_calc_cell_coords(self, xy):
+        
+        cellCoords = np.transpose(rot@self.refCellCoords.T + \
+                xy[:, :, np.newaxis], [0, 2, 1])
+        
+        return cellCords
     
     def create_local_structs(self):
         
@@ -605,55 +612,32 @@ class LocalStructs:
         #xyArray = np.concatenate(xyList, axis = 0)
         
         localStructsList = []
+        distsList = []
         
         for xy, rot in zip(xyList, rotList):
             
             cellCoords = np.transpose(rot@self.refCellCoords.T + \
                 xy[:, :, np.newaxis], [0, 2, 1])
-            
+
             dists = np.sum((cellCoords[:, :, np.newaxis, :] - xy) ** 2, -1)
             cs = self.Gs(dists)
             diagIndices = np.arange(cs.shape[0])
             cs[diagIndices, :, diagIndices] = 0
             localStructs = self.Psi(np.sum(cs, -1))
             localStructsList.append(localStructs)
-        #     dists = np.sum((cellCoords[:, :, np.newaxis, :] - xy) ** 2, -1)
-        
-        # distList = []
-        
-        # for cellCoords, xy in zip(cellCoordsList, xyList):
-            
-        #     dists = np.sum((cellCoords[:, :, np.newaxis, :] - xy)**2, -1)
-        #     distList.append(dists)
-        
-        # csList = []
-        
-        # for dist in distList:
-            
-        #     cs = self.Gs(dist)
-        #     csList.append(cs)
-            
-        # diagIndicesList = []
-        
-        # for cs in csList:
-            
-        #     diagIndices = np.arange(cs.shape[0])
-        #     diagIndicesList.append(diagIndices)
-        
-           
-        # for cs, diagIndices in zip(csList, diagIndicesList):
-             
-        #     cs[diagIndices, :, diagIndices] = 0
-            
-        # localStructsList = []
-        
-        # for cs in csList:
-            
-        #     localStructs = self.Psi(np.sum(cs, -1))
-        #     localStructsList.append(localStructs)
             
         return localStructsList
-
+    
+class CompareFingerprint:
+    
+    def __init__ (self, fingerprintsList, validMinutiaeList, localStructsList):
+        
+        self.fingerprintsList = fingerprintsList
+        self.validMinutiaeList = validMinutiaeList
+        self.localStructsList = localStructsList
+    
+    def compare_fingerprints(self, target):
+        
 def print_wd():
     # Get the current working directory
     currentDirectory = os.getcwd()
