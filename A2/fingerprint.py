@@ -545,11 +545,13 @@ class LocalStructs:
         
         self.mccRadius = 70
         self.mccSize = 16
-        self.g = 2 * mccRadius / mccSize
-        self.x = np.arrange(mccSize) * g - (mccSize / 2) * g + g / 2
-        self.y = x[..., np.newaxis]
-        self.iy, self.ix = np.nonzero(x**2 + y**2 <= mccRadius**2)
-        self.refCellCoords = np.columnStack((x[ix], x[iy]))
+        self.g = 2 * self.mccRadius / self.mccSize
+        self.x = np.arange(self.mccSize) * self.g - (self.mccSize / 2) * \
+            self.g + self.g / 2
+        self.y = self.x[..., np.newaxis]
+        self.iy, self.ix = np.nonzero(self.x**2 + self.y**2 <= \
+            self.mccRadius**2)
+        self.refCellCoords = np.column_stack((self.x[self.ix], self.x[self.iy]))
         self.mccSigmaS = 7.0
         self.mccTauPsi = 400.0
         self.mccMuPsi = 1e-2
@@ -611,37 +613,38 @@ class LocalStructs:
         
         distList = []
         
-        for cellCoords, xy in zip(cellCoordsList, xy):
+        for cellCoords, xy in zip(cellCoordsList, xyList):
             
             dists = np.sum((cellCoords[:, :, np.newaxis, :] - xy)**2, -1)
             distList.append(dists)
         
-        csList = []
+        # csList = []
         
-        for dist in distList:
+        # for dist in distList:
             
-            cs = self.Gs(dist)
-            csList.append(cs)
+        #     cs = self.Gs(dist)
+        #     csList.append(cs)
             
-        diagIndicesList = []
+        # diagIndicesList = []
         
-        for cs in csList:
+        # for cs in csList:
             
-            diagIndices = np.arrange(cs.shape[0])
-            diagIndices.append(diagIndices)
-            
-        for cs, diagIndices in zip(csList, diagIndicesList):
-            
-            cs[diagIndices, :, diagIndices] = 0
+        #     diagIndices = np.arange(cs.shape[0])
+        #     diagIndicesList.append(diagIndices)
+        
+           
+        #for cs, diagIndices in zip(csList, diagIndicesList):
+             
+            #cs[diagIndices, :, diagIndices] = 0
             
         localStructsList = []
         
-        for cs in csList:
+        # for cs in csList:
             
-            localStructs = self.Psi(np.sum(cs, -1))
-            localStructsList.append(localStructs)
+        #     localStructs = self.Psi(np.sum(cs, -1))
+        #     localStructsList.append(localStructs)
             
-        return localStructsList
+        return distList
 
 def print_wd():
     # Get the current working directory
