@@ -150,9 +150,12 @@ def ridge_orientation(GxList, GyList, Gx2List, Gy2List):
         
     
     
-    for diffGxxGyy, g2xy, sumGxxGyy, gxx in zip(diffGxxGyyList, G2xyList, sumGxxGyyList, GxxList):
+    for diffGxxGyy, g2xy, sumGxxGyy, gxx in zip(diffGxxGyyList, G2xyList, \
+        sumGxxGyyList, GxxList):
         
-        strengths = np.divide(cv.sqrt(((diffGxxGyy ** 2) + (g2xy ** 2))), sumGxxGyy, out=np.zeros_like(gxx), where=sumGxxGyy !=0)
+        strengths = np.divide(cv.sqrt(((diffGxxGyy ** 2) + (g2xy ** 2))), \
+                              sumGxxGyy, out=np.zeros_like(gxx), \
+                                  where=sumGxxGyy !=0)
         strengthsList.append(strengths)
     
     return orientationsList, strengthsList
@@ -201,7 +204,9 @@ def ridge_frequency(fingerprints):
     
     for xs in xSigList:
         
-        localMax = np.nonzero(np.r_[False, xs[1:] > xs[:-1]] & np.r_[xs[:-1] >= xs[1:], False])[0]
+        localMax = np.nonzero(np.r_[False, xs[1:] > xs[:-1]] & \
+            np.r_[xs[:-1] >= xs[1:], False])[0]
+        
         locMaxList.append(localMax)
         
     return regionList, locMaxList, xSigList
@@ -309,6 +314,335 @@ def get_skeleton(ridgeLinesList):
         skeletonList.append(skeleton)
     
     return skeletonList
+
+def compute_crossing_number(values):
+    return np.count_nonzero(values < np.roll(values, -1))
+
+def get_cn(skeletonList):
+    
+    cnFilter = np.array([[  1,  2,  4],
+                      [128,  0,  8],
+                      [ 64, 32, 16]
+                     ])
+    
+    allEightNeighbors = [np.array([int(d) for d in f'{x:08b}'])[::-1] for x in range(256)]
+    cnLUT = np.array([compute_crossing_number(x) for x in allEightNeighbors]).astype(np.uint8)
+    
+    skeleton01List = []
+    
+    for skeleton in skeletonList:
+        
+        skeleton01 = np.where(skeleton!=0, 1, 0).astype(np.uint8)
+        skeleton01List.append(skeleton01)
+    
+    neighbourValsList = []
+    
+    for skeleton01 in skeleton01List:
+        
+        neighbourVals = cv.filter2D(skeleton01, -1, cnFilter, borderType = cv.BORDER_CONSTANT)
+        neighbourValsList.append(neighbourVals)
+    
+    cnList = []
+    
+    for skeleton, neighbourVals in zip(skeletonList, neighbourValsList):
+        
+        cn = cv.LUT(neighbourVals, cnLUT)
+        cn[skeleton == 0] = 0
+        cnList.append(cn)
+        
+    return neighbourValsList, allEightNeighbors, cnList
+
+def get_minutiae(cnList):
+    
+    minutiaeList = []
+    
+    for cn in cnList:
+        
+        minutiae = [(x, y, cn[y, x]==1) for y, x in zip(*np.where(np.isin(cn, [1,3])))]
+        minutiaeList.append(minutiae)
+    
+    return minutiaeList
+
+def get_mask_distance(maskList):
+    
+    maskDistList = []
+    
+    for mask in maskList:
+        
+        maskDist = cv.distanceTransform(
+            cv.copyMakeBorder(mask, 1, 1, 1, 1, 
+                              cv.BORDER_CONSTANT), cv.DIST_C, 3)[1:-1,1:-1]
+        
+        maskDistList.append(maskDist)
+
+    return maskDistList
+
+def get_filt_minutiae(maskDistList, minutiaeList):
+    
+    filtMinutiaeList = []
+    
+    for maskDist, minutiae in zip(maskDistList, minutiaeList):
+        
+        filteredMinutiae = list(filter(lambda m: maskDist[m[1], m[0]]>10,
+                                       minutiae))
+        
+        filtMinutiaeList.append(filteredMinutiae)
+        
+    return filtMinutiaeList
+
+def compute_next_ridge_following_directions(prevDirection, values):
+        
+    nextPos = np.argwhere(values!=0).ravel().tolist()
+    
+    if len(nextPos) > 0 and prevDirection != 8:
+        # There is a previous direction: return all the next directions, sorted
+        # according to the distance from it, except the direction, if any, 
+        # that corresponds to the previous position
+                       
+        nextPos.sort(key = lambda d: 4 - abs(abs(d - prevDirection) - 4))
+        
+        if nextPos[-1] == (prevDirection + 4) % 8: # the direction of the previous position is the opposite one
+            nextPos = nextPos[:-1] # removes it
+            
+    return nextPos
+
+def create_nd_LUT(allEightNeighbors):
+    
+    r2 = 2**0.5 # sqrt(2)
+    
+    # The eight possible (x, y) offsets with each corresponding Euclidean distance
+    xySteps = [(-1, -1, r2),(0, -1, 1),(1, -1, r2), (1, 0, 1), (1, 1, r2), 
+               ( 0, 1, 1), (-1, 1, r2),(-1, 0, 1)]
+
+    ndLUT = [[compute_next_ridge_following_directions(pd, x) for pd in 
+              range(9)] for x in allEightNeighbors]
+    
+    return xySteps, ndLUT
+
+
+
+class MinutiaeDirections:
+    
+    def __init__(self, neighbourValsList, ndLUT, cnList, xySteps):
+        
+        self.neighbourValsList = neighbourValsList
+        self.ndLUT = ndLUT
+        self.cnList = cnList
+        self.xySteps = xySteps
+        
+    def follow_ridge_and_compute_angle(self, valTuple, x, y, d = 8):
+        
+        ndLUT = self.ndLUT
+        xySteps = self.xySteps
+        neighbourVals, cn = valTuple
+        px, py = x, y
+        length = 0.0
+
+        # ndLUT = ridgeCtx.ndLUT
+        # neighbourValsList = ridgeCtx.neighbourValsList
+        # cnList = ridgeCtx.cnList
+        # xySteps = ridgeCtx.xySteps
+            
+                
+        while length < 20: # max length followed
+            # print("length = %d" % length)
+            # print("ndLUT: %s" % ndLUT)
+            # print("py = %d" % py)
+            # print("px = %d" % px)
+            # print("d = %d" % d)
+            #print("At start of loop - length: {}, px: {}, py: {}, d: {}"\
+            #     .format(length, px, py, d))
+            nextDirections = ndLUT[neighbourVals[py,px]][d]
+            #print("nextDirections: {}".format(nextDirections))
+            
+            if len(nextDirections) == 0:
+                
+                #print("line 460")
+                break
+            
+            # Need to check ALL possible next directions
+            if (any(cn[py + xySteps[nd][1], px + xySteps[nd][0]] != 2 for nd 
+                    in nextDirections)):
+                #print("line 466")
+                break # another minutia found: we stop here
+            
+            # Only the first direction has to be followed
+
+            d = nextDirections[0]
+            ox, oy, l = xySteps[d]
+            #print("Before update - ox: {}, oy: {}, l: {}, px: {}, py: {}"\
+            #     .format(ox, oy, l, px, py))
+            px += ox ; py += oy ; length += l
+
+            #print("After update - px: {}, py: {}, length: {}".\
+                # format(px, py, length))
+
+            # check if the minimum length for a valid direction has been reached
+
+        return math.atan2(-py+y, px-x) if length >= 10 else None
+
+    def valid_minutiae(self, filtMinutiaeList):
+        
+        #print("line 486")
+        ndLUT = self.ndLUT
+        neighbourValsList = self.neighbourValsList
+        cnList = self.cnList
+        xySteps = self.xySteps
+
+        
+        validMinutiaeList = []
+        
+        for filteredMinutiae, neighbourVals, cn \
+            in zip(filtMinutiaeList, neighbourValsList, cnList):
+                
+            validMinutiae = []
+            
+            for x, y, term in filteredMinutiae:
+                
+
+                d = None
+        
+                if term: # termination: simply follow and compute the direction
+                    
+                    #print("line 503")
+                    d = self.follow_ridge_and_compute_angle((neighbourVals, cn)
+                                                       , x, y)
+
+                    
+                else: # bifurcation: follow each of the three branches
+                    
+                    # 8 means: no previous direction
+                    
+                    dirs = ndLUT[neighbourVals[y,x]][8]
+                        
+                    if len(dirs)==3: # only if there are exactly three branches
+                        
+                        #print("line 516")
+                        angles = [self.follow_ridge_and_compute_angle \
+                                ((neighbourVals, cn), x+xySteps[d][0], \
+                                    y+xySteps[d][1], d) for d in dirs]
+
+                        if all(a is not None for a in angles):
+                            
+                            a1, a2 = min(((angles[i], \
+                                        angles[(i+1)%3]) \
+                                        for i in range(3)), key=lambda \
+                                        t: angle_abs_difference(t[0], t[1]))
+                            
+                            
+                            d = angle_mean(a1, a2)  
+                                        
+                if d is not None:
+                    validMinutiae.append( (x, y, term, d) )
+
+                validMinutiaeList.append(validMinutiae)
+        
+        return validMinutiaeList
+    
+class LocalStructs:
+    
+    def __init__ (self, validMinutiaeList):
+        
+        self.mccRadius = 70
+        self.mccSize = 16
+        self.g = 2 * mccRadius / mccSize
+        self.x = np.arrange(mccSize) * g - (mccSize / 2) * g + g / 2
+        self.y = x[..., np.newaxis]
+        self.iy, self.ix = np.nonzero(x**2 + y**2 <= mccRadius**2)
+        self.refCellCoords = np.columnStack((x[ix], x[iy]))
+        self.mccSigmaS = 7.0
+        self.mccTauPsi = 400.0
+        self.mccMuPsi = 1e-2
+        self.validMinutiaeList = validMinutiaeList
+        
+    def Gs(self, tSqr):
+        # Gaussian function with zero mean and mcc_sigma_s standard deviation,
+        # see eq. (7) in MCC paper
+        return np.exp(-0.5 * tSqr / (self.mccSigmaS**2)) / (math.tau**0.5 * self.mccSigmaS)
+    
+    def Psi(self, v):
+        # Sigmoid function that limits the contribution of dense minutiae 
+        # clusters, see eq. (4)-(5) in MCC paper
+        return 1. / (1. + np.exp(-self.mccTauPsi * (v - self.mccMuPsi)))
+        
+    
+    def create_local_structs(self):
+        
+        xydList = []
+        
+        for validMinutiae in self.validMinutiaeList:
+            
+            xyd = np.array([(x, y, d) for x, y, _, d in validMinutiae])
+            xydList.append(xyd)
+            
+        dCosList = []
+        dSinList = []
+        
+        for xyd in xydList:
+            
+            dCos, dSin = np.cos(xyd[:, 2]).reshape((-1, 1, 1)), \
+                np.sin(xyd[:, 2]).reshape((-1, 1, 1))
+                
+            dCosList.append(dCos)
+            dSinList.append(dSin)
+            
+        rotList = []
+        
+        for dCos, dSin in zip(dCosList, dSinList):
+            
+            rot = np.block([[dCos, dSin], [-dSin, dCos]])
+            rotList.append(rot)
+        
+        xyList = []
+        
+        for xyd in xydList:
+            
+            xy = xyd[:, :2]
+            xyList.append(xy)
+            
+        cellCoordsList = []
+        
+        for xy, rot in zip(xyList, rotList):
+            
+            cellCoords = np.transpose(rot@self.refCellCoords.T + \
+                xy[:, :, np.newaxis], [0, 2, 1])
+            
+            cellCoordsList.append(cellCoords)
+        
+        distList = []
+        
+        for cellCoords, xy in zip(cellCoordsList, xy):
+            
+            dists = np.sum((cellCoords[:, :, np.newaxis, :] - xy)**2, -1)
+            distList.append(dists)
+        
+        csList = []
+        
+        for dist in distList:
+            
+            cs = self.Gs(dist)
+            csList.append(cs)
+            
+        diagIndicesList = []
+        
+        for cs in csList:
+            
+            diagIndices = np.arrange(cs.shape[0])
+            diagIndices.append(diagIndices)
+            
+        for cs, diagIndices in zip(csList, diagIndicesList):
+            
+            cs[diagIndices, :, diagIndices] = 0
+            
+        localStructsList = []
+        
+        for cs in csList:
+            
+            localStructs = self.Psi(np.sum(cs, -1))
+            localStructsList.append(localStructs)
+            
+        return localStructsList
+
 def print_wd():
     # Get the current working directory
     currentDirectory = os.getcwd()
