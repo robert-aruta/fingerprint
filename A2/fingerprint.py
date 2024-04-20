@@ -519,13 +519,13 @@ class MinutiaeDirections:
                         
                         #print("line 516")
                         angles = [self.follow_ridge_and_compute_angle \
-                                ((neighbourVals, cn), x+xySteps[d][0], \
-                                    y+xySteps[d][1], d) for d in dirs]
+                                ((neighbourVals, cn), x + xySteps[d][0], \
+                                    y + xySteps[d][1], d) for d in dirs]
 
                         if all(a is not None for a in angles):
                             
                             a1, a2 = min(((angles[i], \
-                                        angles[(i+1)%3]) \
+                                        angles[(i + 1) % 3]) \
                                         for i in range(3)), key=lambda \
                                         t: angle_abs_difference(t[0], t[1]))
                             
@@ -602,21 +602,29 @@ class LocalStructs:
             xy = xyd[:, :2]
             xyList.append(xy)
             
-        cellCoordsList = []
+        #xyArray = np.concatenate(xyList, axis = 0)
+        
+        localStructsList = []
         
         for xy, rot in zip(xyList, rotList):
             
             cellCoords = np.transpose(rot@self.refCellCoords.T + \
                 xy[:, :, np.newaxis], [0, 2, 1])
             
-            cellCoordsList.append(cellCoords)
+            dists = np.sum((cellCoords[:, :, np.newaxis, :] - xy) ** 2, -1)
+            cs = self.Gs(dists)
+            diagIndices = np.arange(cs.shape[0])
+            cs[diagIndices, :, diagIndices] = 0
+            localStructs = self.Psi(np.sum(cs, -1))
+            localStructsList.append(localStructs)
+        #     dists = np.sum((cellCoords[:, :, np.newaxis, :] - xy) ** 2, -1)
         
-        distList = []
+        # distList = []
         
-        for cellCoords, xy in zip(cellCoordsList, xyList):
+        # for cellCoords, xy in zip(cellCoordsList, xyList):
             
-            dists = np.sum((cellCoords[:, :, np.newaxis, :] - xy)**2, -1)
-            distList.append(dists)
+        #     dists = np.sum((cellCoords[:, :, np.newaxis, :] - xy)**2, -1)
+        #     distList.append(dists)
         
         # csList = []
         
@@ -633,18 +641,18 @@ class LocalStructs:
         #     diagIndicesList.append(diagIndices)
         
            
-        #for cs, diagIndices in zip(csList, diagIndicesList):
+        # for cs, diagIndices in zip(csList, diagIndicesList):
              
-            #cs[diagIndices, :, diagIndices] = 0
+        #     cs[diagIndices, :, diagIndices] = 0
             
-        localStructsList = []
+        # localStructsList = []
         
         # for cs in csList:
             
         #     localStructs = self.Psi(np.sum(cs, -1))
         #     localStructsList.append(localStructs)
             
-        return distList
+        return localStructsList
 
 def print_wd():
     # Get the current working directory
