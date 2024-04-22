@@ -16,8 +16,9 @@ import os
 import subprocess
 import numpy as np
 import cv2 as cv
+import csv
 import matplotlib.pyplot as plt
-
+import streamlit as st
 from utils import *
 from ipywidgets import interact
 #from PyQt5.QtWidgets import *
@@ -27,8 +28,8 @@ from ipywidgets import interact
 # Read Fingerprints in the fingerprint subdirectory
 def read_fingerprints():
 
-    directoryPath = './A2/DB1_B/'
-    fingerprints = []
+    directoryPath = './DB1_B/'
+    fingerprintList = []
     resizedImages = []
 
     for filename in os.listdir(directoryPath):
@@ -36,14 +37,19 @@ def read_fingerprints():
         filepath = os.path.join(directoryPath, filename)
         image = cv.imread(filepath, cv.IMREAD_GRAYSCALE)
 
-        if fingerprints is not None:
+        if fingerprintList is not None:
 
-            fingerprints.append((image, filename))
+            fingerprintList.append((image, filename))
 
         else:
             print("Failed to Read image of %s\n" % filename)
 
-    return fingerprints
+    # with open('output.csv', 'w', newline='') as file:
+    #     writer = csv.writer(file)
+    #     # Write all rows at once
+    #     writer.writerows(fingerprintList)
+    
+    return fingerprintList
 
 # Calculate the local gradient for all the fingerprints in the directory
 def calc_sobel(fingerprints):
@@ -241,12 +247,12 @@ def gabor_bank(ridgePeriodList):
     
     return gaborBankList
 
-def filter_fingerprint(fingerprints, gaborBank):
+def filter_fingerprint(fingerprints, gaborBankList):
     
     filteredFPList = []
     nonfilteredFPList = []
     
-    for fp, filename in fingerprints:
+    for (fp, filename), gaborBank in zip(fingerprints, gaborBankList):
         
         nfFP = 255 - fp
         nonfilteredFPList.append(nfFP)
@@ -537,7 +543,12 @@ class MinutiaeDirections:
                     validMinutiae.append( (x, y, term, d) )
 
                 validMinutiaeList.append(validMinutiae)
-        
+                
+        # with open('Valid Minutiae.csv', 'w', newline='') as file:
+        #     writer = csv.writer(file)
+        #     # Write all rows at once
+        #     writer.writerows(validMinutiaeList)
+            
         return validMinutiaeList
     
 class LocalStructs:
@@ -637,7 +648,8 @@ class CompareFingerprint:
         self.localStructsList = localStructsList
     
     def compare_fingerprints(self, target):
-        
+        pass
+    
 def print_wd():
     # Get the current working directory
     currentDirectory = os.getcwd()
@@ -645,18 +657,7 @@ def print_wd():
     # Print the current working directory
     print(currentDirectory)
 
-def gui_init():
-    
-    #print("inside GUI INIT function")
-    app = QApplication([])
-    window = QWidget()
-    
-    label = QLabel(window)
-    label.setText("Hello World")
-    
-    window.show()
-    app.exec_()
-    
+        
 def main():
     pass
     # print_wd()
