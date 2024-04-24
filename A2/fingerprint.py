@@ -21,14 +21,25 @@ import matplotlib.pyplot as plt
 import streamlit as st
 from utils import *
 from ipywidgets import interact
-#from PyQt5.QtWidgets import *
 
 
 
 # Read Fingerprints in the fingerprint subdirectory
-def read_fingerprints():
+def read_fingerprints(filePath):
 
-    directoryPath = './DB1_B/'
+
+    #directoryPath = './A2/DB1_B/'
+    #directoryPath = './DB1_B/'
+    #directoryPath = './A2/fingerprint/'
+    
+    if filePath is not None:
+        
+        directoryPath = filePath
+    
+    else:
+        
+        directoryPath = './target_fingerprint'
+        
     fingerprintList = []
     resizedImages = []
 
@@ -42,6 +53,7 @@ def read_fingerprints():
             fingerprintList.append((image, filename))
 
         else:
+            
             print("Failed to Read image of %s\n" % filename)
 
     # with open('output.csv', 'w', newline='') as file:
@@ -325,12 +337,18 @@ def get_skeleton(ridgeLinesList):
 def compute_crossing_number(values):
     return np.count_nonzero(values < np.roll(values, -1))
 
-def get_cn(skeletonList):
+def create_cn_filter():
     
     cnFilter = np.array([[  1,  2,  4],
                       [128,  0,  8],
                       [ 64, 32, 16]
                      ])
+    
+    return cnFilter
+
+def get_cn(skeletonList):
+    
+    
     
     allEightNeighbors = [np.array([int(d) for d in f'{x:08b}'])[::-1] for x in range(256)]
     cnLUT = np.array([compute_crossing_number(x) for x in allEightNeighbors]).astype(np.uint8)
@@ -346,7 +364,7 @@ def get_cn(skeletonList):
     
     for skeleton01 in skeleton01List:
         
-        neighbourVals = cv.filter2D(skeleton01, -1, cnFilter, borderType = cv.BORDER_CONSTANT)
+        neighbourVals = cv.filter2D(skeleton01, -1, create_cn_filter(), borderType = cv.BORDER_CONSTANT)
         neighbourValsList.append(neighbourVals)
     
     cnList = []
@@ -657,7 +675,40 @@ def print_wd():
     # Print the current working directory
     print(currentDirectory)
 
-        
+def analyse_fingerprints(filepath):
+
+    fingerprintsList = read_fingerprints(filepath)
+    GxList, GyList, Gx2List, Gy2List, GmList = calc_sobel(fingerprintsList)
+    sumGm = sum_Gm(GmList)
+    maskList = threshold_mask(sumGm)
+    orientationsList, strengthsList = ridge_orientation(GxList, GyList,\
+        Gx2List, Gy2List)
+    
+    regionList, locMaxList, xSigList = ridge_frequency(fingerprintsList)
+    distanceList, ridgePeriodList = ridge_period(locMaxList)
+    gaborBankList = gabor_bank(ridgePeriodList)
+    fFPList, nfFBList = filter_fingerprint(fingerprintsList, gaborBankList)
+    enhancedFPList = enhance_fingerprint(fingerprintsList, fFPList, \
+        orientationsList, maskList)
+    
+    ridgeLinesList = ridge_lines(enhancedFPList)
+    skeletonList = get_skeleton(ridgeLinesList)
+    neighbourValsList, allEightNeighbors, cnList = get_cn(skeletonList)
+    minutiaeList = get_minutiae(cnList)
+    maskDistList = get_mask_distance(maskList)
+    filtMinutiaeList = get_filt_minutiae(maskDistList, minutiaeList)
+    xySteps, ndLUT = create_nd_LUT(allEightNeighbors)
+    classMinutiaeDir = MinutiaeDirections(neighbourValsList, ndLUT, \
+        cnList, xySteps)
+    
+    validMinutiaeList = classMinutiaeDir.valid_minutiae(filtMinutiaeList)
+    classLocalStructs = LocalStructs(validMinutiaeList)
+    localStructsList = classLocalStructs.create_local_structs()
+    st.success('Fingerprint database initialised!')
+    
+    
+    return fingerprintsList, validMinutiaeList, localStructsList
+    
 def main():
     pass
     # print_wd()
