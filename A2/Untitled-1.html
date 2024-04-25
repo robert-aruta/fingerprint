@@ -7519,6 +7519,963 @@ a.anchor-link {
 </div>
 <div class="jp-InputArea jp-Cell-inputArea"><div class="jp-InputPrompt jp-InputArea-prompt">
 </div><div class="jp-RenderedHTMLCommon jp-RenderedMarkdown jp-MarkdownOutput" data-mime-type="text/markdown">
+<p>The fingerprint recognition algorithm used was the same as the jupyter notebook example. However, the algorithm was changed to handle a list of fingerprint images rather than one. A separate python script named, <code>fingerprint.py</code>, was written to handle this scenario. In the appendix, the same steps done in the jupyter example was done using the <code>fingerprint.py</code> script. For the graphical user interface (GUI), streamlit was used and a program called, <code>gui_init.py</code>, was built for the user to interact with fingerprint algorithm.</p>
+</div>
+</div>
+</div>
+</div>
+<div class="jp-Cell jp-MarkdownCell jp-Notebook-cell">
+<div class="jp-Cell-inputWrapper" tabindex="0">
+<div class="jp-Collapser jp-InputCollapser jp-Cell-inputCollapser">
+</div>
+<div class="jp-InputArea jp-Cell-inputArea"><div class="jp-InputPrompt jp-InputArea-prompt">
+</div><div class="jp-RenderedHTMLCommon jp-RenderedMarkdown jp-MarkdownOutput" data-mime-type="text/markdown">
+<h3 id="fingerprint.py-Code"><code>fingerprint.py</code> Code<a class="anchor-link" href="#fingerprint.py-Code">¶</a></h3><div class="highlight"><pre><span></span><span class="kn">from</span> <span class="nn">os</span> <span class="kn">import</span> <span class="n">path</span>
+<span class="kn">import</span> <span class="nn">subprocess</span>
+<span class="kn">import</span> <span class="nn">threading</span>
+
+<span class="k">if</span> <span class="ow">not</span> <span class="n">path</span><span class="o">.</span><span class="n">exists</span><span class="p">(</span><span class="s1">'utils.py'</span><span class="p">):</span> <span class="c1"># If running on colab: the first time download and unzip additional files</span>
+    
+    <span class="c1"># Run the wget command to download the file</span>
+    <span class="n">subprocess</span><span class="o">.</span><span class="n">run</span><span class="p">([</span><span class="s1">'wget'</span><span class="p">,</span> <span class="s1">'https://biolab.csr.unibo.it/samples/fr/files.zip'</span><span class="p">])</span>
+
+    <span class="c1"># Run the unzip command to extract the contents</span>
+    <span class="n">subprocess</span><span class="o">.</span><span class="n">run</span><span class="p">([</span><span class="s1">'unzip'</span><span class="p">,</span> <span class="s1">'files.zip'</span><span class="p">])</span>
+
+<span class="kn">import</span> <span class="nn">utils</span>  <span class="c1"># Run utils.py for helper functions</span>
+<span class="kn">import</span> <span class="nn">math</span>
+<span class="kn">import</span> <span class="nn">os</span>
+<span class="kn">import</span> <span class="nn">subprocess</span>
+<span class="kn">import</span> <span class="nn">numpy</span> <span class="k">as</span> <span class="nn">np</span>
+<span class="kn">import</span> <span class="nn">cv2</span> <span class="k">as</span> <span class="nn">cv</span>
+<span class="kn">import</span> <span class="nn">csv</span>
+<span class="kn">import</span> <span class="nn">matplotlib.pyplot</span> <span class="k">as</span> <span class="nn">plt</span>
+<span class="kn">import</span> <span class="nn">streamlit</span> <span class="k">as</span> <span class="nn">st</span>
+<span class="kn">from</span> <span class="nn">utils</span> <span class="kn">import</span> <span class="o">*</span>
+<span class="kn">from</span> <span class="nn">ipywidgets</span> <span class="kn">import</span> <span class="n">interact</span>
+
+
+
+<span class="c1"># Read Fingerprints in the fingerprint subdirectory</span>
+<span class="k">def</span> <span class="nf">read_fingerprints</span><span class="p">(</span><span class="n">filePath</span><span class="p">):</span>
+
+
+    <span class="c1">#directoryPath = './A2/DB1_B/'</span>
+    <span class="c1">#directoryPath = './DB1_B/'</span>
+    <span class="c1">#directoryPath = './A2/fingerprint/'</span>
+    
+    <span class="k">if</span> <span class="n">filePath</span> <span class="ow">is</span> <span class="ow">not</span> <span class="kc">None</span><span class="p">:</span>
+        
+        <span class="n">directoryPath</span> <span class="o">=</span> <span class="n">filePath</span>
+    
+    <span class="k">else</span><span class="p">:</span>
+        
+        <span class="c1">#directoryPath = './A2/DB1_B'</span>
+        <span class="c1">#directoryPath = './target_fingerprint'</span>
+        <span class="n">directoryPath</span> <span class="o">=</span> <span class="s1">'./DB1_B - Copy/'</span>
+        
+    <span class="n">fingerprintList</span> <span class="o">=</span> <span class="p">[]</span>
+    <span class="n">resizedImages</span> <span class="o">=</span> <span class="p">[]</span>
+
+    <span class="k">for</span> <span class="n">filename</span> <span class="ow">in</span> <span class="n">os</span><span class="o">.</span><span class="n">listdir</span><span class="p">(</span><span class="n">directoryPath</span><span class="p">):</span>
+        
+        <span class="n">filepath</span> <span class="o">=</span> <span class="n">os</span><span class="o">.</span><span class="n">path</span><span class="o">.</span><span class="n">join</span><span class="p">(</span><span class="n">directoryPath</span><span class="p">,</span> <span class="n">filename</span><span class="p">)</span>
+        <span class="n">image</span> <span class="o">=</span> <span class="n">cv</span><span class="o">.</span><span class="n">imread</span><span class="p">(</span><span class="n">filepath</span><span class="p">,</span> <span class="n">cv</span><span class="o">.</span><span class="n">IMREAD_GRAYSCALE</span><span class="p">)</span>
+
+        <span class="k">if</span> <span class="n">fingerprintList</span> <span class="ow">is</span> <span class="ow">not</span> <span class="kc">None</span><span class="p">:</span>
+
+            <span class="n">fingerprintList</span><span class="o">.</span><span class="n">append</span><span class="p">((</span><span class="n">image</span><span class="p">,</span> <span class="n">filename</span><span class="p">))</span>
+
+        <span class="k">else</span><span class="p">:</span>
+            
+            <span class="nb">print</span><span class="p">(</span><span class="s2">"Failed to Read image of </span><span class="si">%s</span><span class="se">\n</span><span class="s2">"</span> <span class="o">%</span> <span class="n">filename</span><span class="p">)</span>
+    
+    <span class="k">return</span> <span class="n">fingerprintList</span>
+
+<span class="c1"># Calculate the local gradient for all the fingerprints in the directory</span>
+<span class="k">def</span> <span class="nf">calc_sobel</span><span class="p">(</span><span class="n">fingerprints</span><span class="p">):</span>
+    
+    <span class="n">GxList</span> <span class="o">=</span> <span class="p">[]</span>
+    <span class="n">GyList</span> <span class="o">=</span> <span class="p">[]</span>
+    <span class="n">Gx2List</span> <span class="o">=</span> <span class="p">[]</span>
+    <span class="n">Gy2List</span> <span class="o">=</span> <span class="p">[]</span>
+
+    <span class="c1"># Calculate the local gradient for each fingerprins in the directory </span>
+    <span class="k">for</span> <span class="n">image</span><span class="p">,</span> <span class="n">filename</span> <span class="ow">in</span> <span class="n">fingerprints</span><span class="p">:</span>
+        
+        <span class="c1"># Applies the Sobel Filter to the image and append it to the list</span>
+        <span class="c1"># for the x-direction</span>
+        <span class="n">Gx</span> <span class="o">=</span> <span class="n">cv</span><span class="o">.</span><span class="n">Sobel</span><span class="p">(</span><span class="n">image</span><span class="p">,</span> <span class="n">cv</span><span class="o">.</span><span class="n">CV_32F</span><span class="p">,</span> <span class="mi">1</span><span class="p">,</span> <span class="mi">0</span><span class="p">)</span>
+        <span class="n">GxList</span><span class="o">.</span><span class="n">append</span><span class="p">(</span><span class="n">Gx</span><span class="p">)</span>
+         
+        <span class="c1"># Squares the output filtered image and appends it to the list for the</span>
+        <span class="c1"># x-direction</span>
+        <span class="n">Gx2</span> <span class="o">=</span> <span class="n">Gx</span><span class="o">**</span><span class="mi">2</span>
+        <span class="n">Gx2List</span><span class="o">.</span><span class="n">append</span><span class="p">(</span><span class="n">Gx2</span><span class="p">)</span>
+        
+        <span class="c1"># Applies the Sobel Filter to the image and append it to the list</span>
+        <span class="c1"># for the y-direction</span>
+        <span class="n">Gy</span> <span class="o">=</span> <span class="n">cv</span><span class="o">.</span><span class="n">Sobel</span><span class="p">(</span><span class="n">image</span><span class="p">,</span> <span class="n">cv</span><span class="o">.</span><span class="n">CV_32F</span><span class="p">,</span> <span class="mi">0</span><span class="p">,</span> <span class="mi">1</span><span class="p">)</span>
+        <span class="n">GyList</span><span class="o">.</span><span class="n">append</span><span class="p">(</span><span class="n">Gy</span><span class="p">)</span>
+
+        <span class="c1"># Squares the output filtered image and appends it to the list for the</span>
+        <span class="c1"># y-direction</span>
+        <span class="n">Gy2</span> <span class="o">=</span> <span class="n">Gy</span><span class="o">**</span><span class="mi">2</span>
+        <span class="n">Gy2List</span><span class="o">.</span><span class="n">append</span><span class="p">(</span><span class="n">Gy2</span><span class="p">)</span>
+    
+    
+    <span class="n">GmList</span> <span class="o">=</span> <span class="p">[</span><span class="n">np</span><span class="o">.</span><span class="n">sqrt</span><span class="p">(</span><span class="n">x</span> <span class="o">+</span> <span class="n">y</span><span class="p">)</span> <span class="k">for</span> <span class="n">x</span><span class="p">,</span> <span class="n">y</span> <span class="ow">in</span> <span class="nb">zip</span><span class="p">(</span><span class="n">Gx2List</span><span class="p">,</span> <span class="n">Gy2List</span><span class="p">)]</span>
+    
+    <span class="k">return</span> <span class="n">GxList</span><span class="p">,</span> <span class="n">GyList</span><span class="p">,</span> <span class="n">Gx2List</span><span class="p">,</span> <span class="n">Gy2List</span><span class="p">,</span> <span class="n">GmList</span>
+
+
+<span class="k">def</span> <span class="nf">sum_Gm</span><span class="p">(</span><span class="n">GmList</span><span class="p">):</span>
+    
+    <span class="n">sumList</span> <span class="o">=</span> <span class="p">[]</span>
+    
+    <span class="k">for</span> <span class="n">g</span> <span class="ow">in</span> <span class="n">GmList</span><span class="p">:</span>
+        
+        <span class="n">sumGm</span> <span class="o">=</span> <span class="n">cv</span><span class="o">.</span><span class="n">boxFilter</span><span class="p">(</span><span class="n">g</span><span class="p">,</span> <span class="o">-</span><span class="mi">1</span><span class="p">,</span> <span class="p">(</span><span class="mi">25</span><span class="p">,</span> <span class="mi">25</span><span class="p">),</span> <span class="n">normalize</span> <span class="o">=</span> <span class="kc">False</span><span class="p">)</span>
+        <span class="n">sumList</span><span class="o">.</span><span class="n">append</span><span class="p">(</span><span class="n">sumGm</span><span class="p">)</span>
+        
+    <span class="k">return</span> <span class="n">sumList</span>
+
+<span class="k">def</span> <span class="nf">threshold_mask</span><span class="p">(</span><span class="n">sumList</span><span class="p">):</span>
+    
+    <span class="n">thresholdList</span> <span class="o">=</span> <span class="p">[]</span>
+    <span class="n">maskList</span> <span class="o">=</span> <span class="p">[]</span>
+    
+    <span class="k">for</span> <span class="n">i</span> <span class="ow">in</span> <span class="n">sumList</span><span class="p">:</span>
+        
+        <span class="n">threshold</span> <span class="o">=</span> <span class="n">i</span><span class="o">.</span><span class="n">max</span><span class="p">()</span> <span class="o">*</span> <span class="mf">0.2</span>
+        <span class="n">mask</span> <span class="o">=</span> <span class="n">cv</span><span class="o">.</span><span class="n">threshold</span><span class="p">(</span><span class="n">i</span><span class="p">,</span> <span class="n">threshold</span><span class="p">,</span> <span class="mi">255</span><span class="p">,</span> <span class="n">cv</span><span class="o">.</span><span class="n">THRESH_BINARY</span><span class="p">)[</span><span class="mi">1</span><span class="p">]</span><span class="o">.</span><span class="n">astype</span><span class="p">(</span><span class="n">np</span><span class="o">.</span><span class="n">uint8</span><span class="p">)</span>
+        <span class="n">maskList</span><span class="o">.</span><span class="n">append</span><span class="p">(</span><span class="n">mask</span><span class="p">)</span>
+        
+    <span class="k">return</span> <span class="n">maskList</span>
+
+<span class="c1"># Calculates the estimation of the local ridge orientation</span>
+<span class="k">def</span> <span class="nf">ridge_orientation</span><span class="p">(</span><span class="n">GxList</span><span class="p">,</span> <span class="n">GyList</span><span class="p">,</span> <span class="n">Gx2List</span><span class="p">,</span> <span class="n">Gy2List</span><span class="p">):</span>
+    
+    <span class="n">W</span> <span class="o">=</span> <span class="p">(</span><span class="mi">23</span><span class="p">,</span> <span class="mi">23</span><span class="p">)</span>
+    <span class="n">GxxList</span> <span class="o">=</span> <span class="p">[]</span>
+    <span class="n">GyyList</span> <span class="o">=</span> <span class="p">[]</span>
+    <span class="n">GxyList</span> <span class="o">=</span> <span class="p">[]</span>
+    <span class="n">orientationsList</span> <span class="o">=</span> <span class="p">[]</span>
+    <span class="n">strengthsList</span> <span class="o">=</span> <span class="p">[]</span>
+    
+    <span class="c1"># Applies boxfilter for all fingerprints in the X Gradient List</span>
+    <span class="k">for</span> <span class="n">gx2</span> <span class="ow">in</span> <span class="n">Gx2List</span><span class="p">:</span>
+        
+        <span class="n">gxx</span> <span class="o">=</span> <span class="n">cv</span><span class="o">.</span><span class="n">boxFilter</span><span class="p">(</span><span class="n">gx2</span><span class="p">,</span> <span class="o">-</span><span class="mi">1</span><span class="p">,</span> <span class="n">W</span><span class="p">,</span> <span class="n">normalize</span> <span class="o">=</span> <span class="kc">False</span><span class="p">)</span>
+        <span class="n">GxxList</span><span class="o">.</span><span class="n">append</span><span class="p">(</span><span class="n">gxx</span><span class="p">)</span>
+    
+    <span class="c1"># Applies boxfilter for all fingerprints in the Y Gradient List</span>
+    <span class="k">for</span> <span class="n">gy2</span> <span class="ow">in</span> <span class="n">Gy2List</span><span class="p">:</span>
+        
+        <span class="n">gyy</span> <span class="o">=</span> <span class="n">cv</span><span class="o">.</span><span class="n">boxFilter</span><span class="p">(</span><span class="n">gy2</span><span class="p">,</span> <span class="o">-</span><span class="mi">1</span><span class="p">,</span> <span class="n">W</span><span class="p">,</span> <span class="n">normalize</span> <span class="o">=</span> <span class="kc">False</span><span class="p">)</span>
+        <span class="n">GyyList</span><span class="o">.</span><span class="n">append</span><span class="p">(</span><span class="n">gyy</span><span class="p">)</span>
+    
+    <span class="c1"># Applies boxfilter after multiplying X and Y gradients</span>
+    <span class="k">for</span> <span class="n">gx</span><span class="p">,</span> <span class="n">gy</span> <span class="ow">in</span> <span class="nb">zip</span><span class="p">(</span><span class="n">GxList</span><span class="p">,</span> <span class="n">GyList</span><span class="p">):</span>
+        
+        <span class="n">gxy</span> <span class="o">=</span> <span class="n">cv</span><span class="o">.</span><span class="n">boxFilter</span><span class="p">(</span><span class="n">gx</span> <span class="o">*</span> <span class="n">gy</span><span class="p">,</span> <span class="o">-</span><span class="mi">1</span><span class="p">,</span> <span class="n">W</span><span class="p">,</span> <span class="n">normalize</span> <span class="o">=</span> <span class="kc">False</span><span class="p">)</span>
+        <span class="n">GxyList</span><span class="o">.</span><span class="n">append</span><span class="p">(</span><span class="n">gxy</span><span class="p">)</span>
+    
+    <span class="c1"># Substracts each X and Y gradients after being box filtered    </span>
+    <span class="n">diffGxxGyyList</span> <span class="o">=</span> <span class="p">[</span><span class="n">gxx</span> <span class="o">-</span> <span class="n">gyy</span> <span class="k">for</span> <span class="n">gxx</span><span class="p">,</span> <span class="n">gyy</span> <span class="ow">in</span> <span class="nb">zip</span><span class="p">(</span><span class="n">GxxList</span><span class="p">,</span> <span class="n">GyyList</span><span class="p">)]</span>
+    
+    <span class="c1"># Multiplies each element in the GxyList by 2</span>
+    <span class="n">G2xyList</span> <span class="o">=</span> <span class="p">[</span><span class="mi">2</span> <span class="o">*</span> <span class="n">gxy</span> <span class="k">for</span> <span class="n">gxy</span> <span class="ow">in</span> <span class="n">GxyList</span><span class="p">]</span>
+    
+    <span class="c1"># Sums each X and Y gradients after being box filtered</span>
+    <span class="n">sumGxxGyyList</span> <span class="o">=</span> <span class="p">[</span><span class="n">gxx</span> <span class="o">+</span> <span class="n">gyy</span> <span class="k">for</span> <span class="n">gxx</span><span class="p">,</span> <span class="n">gyy</span> <span class="ow">in</span> <span class="nb">zip</span><span class="p">(</span><span class="n">GxxList</span><span class="p">,</span> <span class="n">GyyList</span><span class="p">)]</span>
+    
+    
+    <span class="k">for</span> <span class="n">diffGxxGyy</span><span class="p">,</span> <span class="n">g2xy</span> <span class="ow">in</span> <span class="nb">zip</span><span class="p">(</span><span class="n">diffGxxGyyList</span><span class="p">,</span> <span class="n">G2xyList</span><span class="p">):</span>
+        
+        <span class="n">orientations</span> <span class="o">=</span> <span class="p">(</span><span class="n">cv</span><span class="o">.</span><span class="n">phase</span><span class="p">(</span><span class="n">diffGxxGyy</span><span class="p">,</span> <span class="o">-</span><span class="n">g2xy</span><span class="p">)</span> <span class="o">+</span> <span class="n">np</span><span class="o">.</span><span class="n">pi</span><span class="p">)</span> <span class="o">/</span> <span class="mi">2</span> <span class="c1"># '-' to adjust for y axis direction</span>
+        <span class="n">orientationsList</span><span class="o">.</span><span class="n">append</span><span class="p">(</span><span class="n">orientations</span><span class="p">)</span>
+        
+    
+    
+    <span class="k">for</span> <span class="n">diffGxxGyy</span><span class="p">,</span> <span class="n">g2xy</span><span class="p">,</span> <span class="n">sumGxxGyy</span><span class="p">,</span> <span class="n">gxx</span> <span class="ow">in</span> <span class="nb">zip</span><span class="p">(</span><span class="n">diffGxxGyyList</span><span class="p">,</span> <span class="n">G2xyList</span><span class="p">,</span> \
+        <span class="n">sumGxxGyyList</span><span class="p">,</span> <span class="n">GxxList</span><span class="p">):</span>
+        
+        <span class="n">strengths</span> <span class="o">=</span> <span class="n">np</span><span class="o">.</span><span class="n">divide</span><span class="p">(</span><span class="n">cv</span><span class="o">.</span><span class="n">sqrt</span><span class="p">(((</span><span class="n">diffGxxGyy</span> <span class="o">**</span> <span class="mi">2</span><span class="p">)</span> <span class="o">+</span> <span class="p">(</span><span class="n">g2xy</span> <span class="o">**</span> <span class="mi">2</span><span class="p">))),</span> \
+                              <span class="n">sumGxxGyy</span><span class="p">,</span> <span class="n">out</span><span class="o">=</span><span class="n">np</span><span class="o">.</span><span class="n">zeros_like</span><span class="p">(</span><span class="n">gxx</span><span class="p">),</span> \
+                                  <span class="n">where</span><span class="o">=</span><span class="n">sumGxxGyy</span> <span class="o">!=</span><span class="mi">0</span><span class="p">)</span>
+        <span class="n">strengthsList</span><span class="o">.</span><span class="n">append</span><span class="p">(</span><span class="n">strengths</span><span class="p">)</span>
+    
+    <span class="k">return</span> <span class="n">orientationsList</span><span class="p">,</span> <span class="n">strengthsList</span>
+
+<span class="k">def</span> <span class="nf">ridge_frequency</span><span class="p">(</span><span class="n">fingerprints</span><span class="p">):</span>
+    
+    <span class="n">regionList</span> <span class="o">=</span> <span class="p">[]</span>
+    <span class="n">blurRegionList</span> <span class="o">=</span> <span class="p">[]</span>
+    <span class="n">xSigList</span> <span class="o">=</span> <span class="p">[]</span>
+    <span class="n">locMaxList</span> <span class="o">=</span> <span class="p">[]</span>
+    
+    <span class="k">for</span> <span class="n">fingerprint</span><span class="p">,</span> <span class="n">filename</span> <span class="ow">in</span> <span class="n">fingerprints</span><span class="p">:</span>
+        
+        <span class="c1">#region = fingerprint[100:20, 50:150]</span>
+        <span class="c1"># w, h = fingerprint.shape</span>
+
+        <span class="c1"># startX = (w - cropWidth) // 2</span>
+        <span class="c1"># startY = (h - cropHeight) // 2</span>
+        <span class="c1"># endX = startX - cropWidth</span>
+        <span class="c1"># endY = startY - cropHeight</span>
+        
+        <span class="c1"># region = fingerprint[startX:endX, 50:endY]</span>
+        <span class="c1"># regionList.append(region)</span>
+        <span class="n">w</span><span class="p">,</span> <span class="n">h</span> <span class="o">=</span> <span class="n">fingerprint</span><span class="o">.</span><span class="n">shape</span>
+        <span class="n">cropWidth</span> <span class="o">=</span> <span class="nb">int</span><span class="p">(</span><span class="mf">0.3</span> <span class="o">*</span> <span class="n">w</span><span class="p">)</span>
+        <span class="n">cropHeight</span> <span class="o">=</span> <span class="nb">int</span><span class="p">(</span><span class="mf">0.3</span> <span class="o">*</span> <span class="n">h</span><span class="p">)</span>
+        <span class="n">endRow</span> <span class="o">=</span> <span class="p">(</span><span class="n">h</span> <span class="o">-</span> <span class="n">cropHeight</span><span class="p">)</span> <span class="o">//</span> <span class="mi">2</span> 
+        <span class="n">startRow</span> <span class="o">=</span> <span class="n">endRow</span> <span class="o">-</span> <span class="mi">80</span>
+        <span class="n">cropWidth</span> <span class="o">=</span> <span class="nb">int</span><span class="p">(</span><span class="mf">0.3</span> <span class="o">*</span> <span class="n">w</span><span class="p">)</span>
+        <span class="n">cropHeight</span> <span class="o">=</span> <span class="nb">int</span><span class="p">(</span><span class="mf">0.3</span> <span class="o">*</span> <span class="n">h</span><span class="p">)</span>
+        <span class="n">middleColumn</span> <span class="o">=</span> <span class="p">(</span><span class="n">w</span> <span class="o">-</span> <span class="n">cropWidth</span><span class="p">)</span> <span class="o">//</span> <span class="mi">2</span>
+        <span class="n">startColumn</span> <span class="o">=</span> <span class="n">middleColumn</span> <span class="o">-</span> <span class="mi">25</span>
+        <span class="n">endColumn</span> <span class="o">=</span> <span class="n">middleColumn</span> <span class="o">+</span> <span class="mi">25</span>
+        
+        <span class="n">region</span> <span class="o">=</span> <span class="n">fingerprint</span><span class="p">[</span><span class="n">startRow</span><span class="p">:</span><span class="n">endRow</span><span class="p">,</span> <span class="n">startColumn</span><span class="p">:</span><span class="n">endColumn</span><span class="p">]</span>
+        <span class="n">regionList</span><span class="o">.</span><span class="n">append</span><span class="p">(</span><span class="n">region</span><span class="p">)</span>
+        <span class="c1"># endX = startX + 80</span>
+        <span class="c1"># endY = (h - cropHeight) // 2</span>
+        <span class="c1"># endY = startY - cropHeight</span>
+        
+        <span class="n">blurRegion</span> <span class="o">=</span> <span class="n">cv</span><span class="o">.</span><span class="n">blur</span><span class="p">(</span><span class="n">region</span><span class="p">,</span> <span class="p">(</span><span class="mi">5</span><span class="p">,</span><span class="mi">5</span><span class="p">),</span> <span class="o">-</span><span class="mi">1</span><span class="p">)</span>
+        <span class="n">blurRegionList</span><span class="o">.</span><span class="n">append</span><span class="p">(</span><span class="n">blurRegion</span><span class="p">)</span>
+        
+        <span class="n">xSignature</span> <span class="o">=</span> <span class="n">np</span><span class="o">.</span><span class="n">sum</span><span class="p">(</span><span class="n">blurRegion</span><span class="p">,</span> <span class="mi">1</span><span class="p">)</span>
+        <span class="n">xSigList</span><span class="o">.</span><span class="n">append</span><span class="p">(</span><span class="n">xSignature</span><span class="p">)</span>
+    
+    <span class="k">for</span> <span class="n">xs</span> <span class="ow">in</span> <span class="n">xSigList</span><span class="p">:</span>
+        
+        <span class="n">localMax</span> <span class="o">=</span> <span class="n">np</span><span class="o">.</span><span class="n">nonzero</span><span class="p">(</span><span class="n">np</span><span class="o">.</span><span class="n">r_</span><span class="p">[</span><span class="kc">False</span><span class="p">,</span> <span class="n">xs</span><span class="p">[</span><span class="mi">1</span><span class="p">:]</span> <span class="o">&gt;</span> <span class="n">xs</span><span class="p">[:</span><span class="o">-</span><span class="mi">1</span><span class="p">]]</span> <span class="o">&amp;</span> \
+            <span class="n">np</span><span class="o">.</span><span class="n">r_</span><span class="p">[</span><span class="n">xs</span><span class="p">[:</span><span class="o">-</span><span class="mi">1</span><span class="p">]</span> <span class="o">&gt;=</span> <span class="n">xs</span><span class="p">[</span><span class="mi">1</span><span class="p">:],</span> <span class="kc">False</span><span class="p">])[</span><span class="mi">0</span><span class="p">]</span>
+        
+        <span class="n">locMaxList</span><span class="o">.</span><span class="n">append</span><span class="p">(</span><span class="n">localMax</span><span class="p">)</span>
+        
+    <span class="k">return</span> <span class="n">regionList</span><span class="p">,</span> <span class="n">locMaxList</span><span class="p">,</span> <span class="n">xSigList</span>
+
+<span class="k">def</span> <span class="nf">ridge_period</span><span class="p">(</span><span class="n">locMaxList</span><span class="p">):</span>
+    
+    <span class="n">distList</span> <span class="o">=</span> <span class="p">[]</span>
+    <span class="n">ridgePeriodList</span> <span class="o">=</span> <span class="p">[]</span>
+    
+    <span class="k">for</span> <span class="n">locMax</span> <span class="ow">in</span> <span class="n">locMaxList</span><span class="p">:</span>
+        
+        <span class="n">distance</span> <span class="o">=</span> <span class="n">locMax</span><span class="p">[</span><span class="mi">1</span><span class="p">:]</span> <span class="o">-</span> <span class="n">locMax</span><span class="p">[:</span><span class="o">-</span><span class="mi">1</span><span class="p">]</span>
+        <span class="n">distList</span><span class="o">.</span><span class="n">append</span><span class="p">(</span><span class="n">distance</span><span class="p">)</span>
+        
+    <span class="k">for</span> <span class="n">distance</span> <span class="ow">in</span> <span class="n">distList</span><span class="p">:</span>
+        
+        <span class="n">ridgePeriod</span> <span class="o">=</span> <span class="n">np</span><span class="o">.</span><span class="n">average</span><span class="p">(</span><span class="n">distance</span><span class="p">)</span>
+        <span class="n">ridgePeriodList</span><span class="o">.</span><span class="n">append</span><span class="p">(</span><span class="n">ridgePeriod</span><span class="p">)</span>
+        
+    <span class="k">return</span> <span class="n">distList</span><span class="p">,</span> <span class="n">ridgePeriodList</span>
+
+<span class="k">def</span> <span class="nf">gabor_bank</span><span class="p">(</span><span class="n">ridgePeriodList</span><span class="p">):</span>
+    
+    <span class="n">orCount</span> <span class="o">=</span> <span class="mi">8</span>
+    <span class="n">gaborBankList</span> <span class="o">=</span> <span class="p">[]</span>
+    
+    <span class="k">for</span> <span class="n">ridgePeriod</span> <span class="ow">in</span> <span class="n">ridgePeriodList</span><span class="p">:</span>
+        
+        <span class="n">gaborBank</span> <span class="o">=</span> <span class="p">[</span><span class="n">gabor_kernel</span><span class="p">(</span><span class="n">ridgePeriod</span><span class="p">,</span> <span class="n">o</span><span class="p">)</span> <span class="k">for</span> <span class="n">o</span> <span class="ow">in</span> <span class="n">np</span><span class="o">.</span><span class="n">arange</span><span class="p">(</span><span class="mi">0</span><span class="p">,</span> <span class="n">np</span><span class="o">.</span><span class="n">pi</span><span class="p">,</span> <span class="n">np</span><span class="o">.</span><span class="n">pi</span><span class="o">/</span><span class="n">orCount</span><span class="p">)]</span>
+        <span class="n">gaborBankList</span><span class="o">.</span><span class="n">append</span><span class="p">(</span><span class="n">gaborBank</span><span class="p">)</span>
+    
+    <span class="k">return</span> <span class="n">gaborBankList</span>
+
+<span class="k">def</span> <span class="nf">filter_fingerprint</span><span class="p">(</span><span class="n">fingerprints</span><span class="p">,</span> <span class="n">gaborBankList</span><span class="p">):</span>
+    
+    <span class="n">filteredFPList</span> <span class="o">=</span> <span class="p">[]</span>
+    <span class="n">nonfilteredFPList</span> <span class="o">=</span> <span class="p">[]</span>
+    
+    <span class="k">for</span> <span class="p">(</span><span class="n">fp</span><span class="p">,</span> <span class="n">filename</span><span class="p">),</span> <span class="n">gaborBank</span> <span class="ow">in</span> <span class="nb">zip</span><span class="p">(</span><span class="n">fingerprints</span><span class="p">,</span> <span class="n">gaborBankList</span><span class="p">):</span>
+        
+        <span class="n">nfFP</span> <span class="o">=</span> <span class="mi">255</span> <span class="o">-</span> <span class="n">fp</span>
+        <span class="n">nonfilteredFPList</span><span class="o">.</span><span class="n">append</span><span class="p">(</span><span class="n">nfFP</span><span class="p">)</span>
+        
+        <span class="n">fFP</span> <span class="o">=</span> <span class="n">np</span><span class="o">.</span><span class="n">array</span><span class="p">([</span><span class="n">cv</span><span class="o">.</span><span class="n">filter2D</span><span class="p">(</span><span class="n">nfFP</span><span class="p">,</span> <span class="n">cv</span><span class="o">.</span><span class="n">CV_32F</span><span class="p">,</span> <span class="n">gb</span><span class="p">)</span> <span class="k">for</span> <span class="n">gb</span> <span class="ow">in</span> <span class="n">gaborBank</span><span class="p">])</span>
+        <span class="n">filteredFPList</span><span class="o">.</span><span class="n">append</span><span class="p">(</span><span class="n">fFP</span><span class="p">)</span>
+        
+    <span class="k">return</span> <span class="n">filteredFPList</span><span class="p">,</span> <span class="n">nonfilteredFPList</span> 
+
+<span class="k">def</span> <span class="nf">enhance_fingerprint</span><span class="p">(</span><span class="n">fingerprintsList</span><span class="p">,</span> <span class="n">filteredFPList</span><span class="p">,</span> <span class="n">orientationsList</span><span class="p">,</span> <span class="n">maskList</span><span class="p">):</span>
+    
+    <span class="n">enhancedFPList</span> <span class="o">=</span> <span class="p">[]</span>
+    <span class="n">xList</span> <span class="o">=</span> <span class="p">[]</span>
+    <span class="n">yList</span> <span class="o">=</span> <span class="p">[]</span>
+    <span class="n">orientationIdxList</span> <span class="o">=</span> <span class="p">[]</span>
+    <span class="n">filteredList</span> <span class="o">=</span> <span class="p">[]</span>
+    <span class="n">orCount</span> <span class="o">=</span> <span class="mi">8</span>
+    
+    <span class="k">for</span> <span class="n">fingerprint</span><span class="p">,</span> <span class="n">filename</span> <span class="ow">in</span> <span class="n">fingerprintsList</span><span class="p">:</span>
+        
+        <span class="n">y</span><span class="p">,</span> <span class="n">x</span> <span class="o">=</span> <span class="n">np</span><span class="o">.</span><span class="n">indices</span><span class="p">(</span><span class="n">fingerprint</span><span class="o">.</span><span class="n">shape</span><span class="p">)</span>
+        <span class="n">xList</span><span class="o">.</span><span class="n">append</span><span class="p">(</span><span class="n">x</span><span class="p">)</span>
+        <span class="n">yList</span><span class="o">.</span><span class="n">append</span><span class="p">(</span><span class="n">y</span><span class="p">)</span>
+    
+    <span class="k">for</span> <span class="n">orientations</span> <span class="ow">in</span> <span class="n">orientationsList</span><span class="p">:</span>
+        
+        <span class="n">orientationIdx</span> <span class="o">=</span> <span class="n">np</span><span class="o">.</span><span class="n">round</span><span class="p">(((</span><span class="n">orientations</span> <span class="o">%</span> <span class="n">np</span><span class="o">.</span><span class="n">pi</span><span class="p">)</span> <span class="o">/</span> <span class="n">np</span><span class="o">.</span><span class="n">pi</span><span class="p">)</span> <span class="o">*</span> <span class="n">orCount</span><span class="p">)</span><span class="o">.</span><span class="n">astype</span><span class="p">(</span><span class="n">np</span><span class="o">.</span><span class="n">int32</span><span class="p">)</span> <span class="o">%</span> <span class="n">orCount</span>
+        <span class="n">orientationIdxList</span><span class="o">.</span><span class="n">append</span><span class="p">(</span><span class="n">orientationIdx</span><span class="p">)</span>
+    
+    <span class="k">for</span> <span class="n">x</span><span class="p">,</span> <span class="n">y</span><span class="p">,</span> <span class="n">fFp</span><span class="p">,</span> <span class="n">orientationIdx</span> <span class="ow">in</span> <span class="nb">zip</span><span class="p">(</span><span class="n">xList</span><span class="p">,</span> <span class="n">yList</span><span class="p">,</span> <span class="n">filteredFPList</span><span class="p">,</span> <span class="n">orientationIdxList</span><span class="p">):</span>
+        
+        <span class="n">filteredFP</span> <span class="o">=</span> <span class="n">fFp</span><span class="p">[</span><span class="n">orientationIdx</span><span class="p">,</span> <span class="n">y</span><span class="p">,</span> <span class="n">x</span><span class="p">]</span>
+        <span class="n">filteredList</span><span class="o">.</span><span class="n">append</span><span class="p">(</span><span class="n">filteredFP</span><span class="p">)</span>
+    
+    <span class="k">for</span> <span class="n">mask</span><span class="p">,</span> <span class="n">filteredFP</span><span class="p">,</span> <span class="p">(</span><span class="n">fingerprint</span><span class="p">,</span> <span class="n">filename</span><span class="p">)</span> <span class="ow">in</span> <span class="nb">zip</span><span class="p">(</span><span class="n">maskList</span><span class="p">,</span> <span class="n">filteredList</span>\
+        <span class="p">,</span> <span class="n">fingerprintsList</span><span class="p">):</span>
+        
+        <span class="n">enhancedFP</span> <span class="o">=</span> <span class="n">mask</span> <span class="o">&amp;</span> <span class="n">np</span><span class="o">.</span><span class="n">clip</span><span class="p">(</span><span class="n">filteredFP</span><span class="p">,</span> <span class="mi">0</span><span class="p">,</span> <span class="mi">255</span><span class="p">)</span><span class="o">.</span><span class="n">astype</span><span class="p">(</span><span class="n">np</span><span class="o">.</span><span class="n">uint8</span><span class="p">)</span>
+        <span class="n">enhancedFPList</span><span class="o">.</span><span class="n">append</span><span class="p">((</span><span class="n">enhancedFP</span><span class="p">,</span> <span class="n">filename</span><span class="p">))</span>
+    <span class="c1"># for fFp, orientations, mask in zip(filteredFPList, orientationsList, maskList):</span>
+        
+    <span class="c1">#     orientationIdx = np.round(((orientations % np.pi) / np.pi) * orCount).astype(np.int32) % orCount</span>
+    <span class="c1">#     filterIdx = fFp[orientationIdx, y, x]</span>
+    <span class="c1">#     enhancedFP = mask &amp; np.clip(filterIdx, 0, 255).astype(np.unit8)</span>
+    <span class="c1">#     enhancedFPList.append(enhancedFP)</span>
+        
+    <span class="k">return</span> <span class="n">enhancedFPList</span>
+
+<span class="k">def</span> <span class="nf">ridge_lines</span><span class="p">(</span><span class="n">enhancedFPList</span><span class="p">):</span>
+    
+    <span class="n">ridgeLinesList</span> <span class="o">=</span> <span class="p">[]</span>
+    
+    <span class="k">for</span> <span class="n">enhancedFP</span><span class="p">,</span> <span class="n">filename</span> <span class="ow">in</span> <span class="n">enhancedFPList</span><span class="p">:</span>
+    
+        <span class="n">_</span><span class="p">,</span> <span class="n">ridgeLines</span> <span class="o">=</span> <span class="n">cv</span><span class="o">.</span><span class="n">threshold</span><span class="p">(</span><span class="n">enhancedFP</span><span class="p">,</span> <span class="mi">32</span><span class="p">,</span> <span class="mi">255</span><span class="p">,</span> <span class="n">cv</span><span class="o">.</span><span class="n">THRESH_BINARY</span><span class="p">)</span>
+        <span class="n">ridgeLinesList</span><span class="o">.</span><span class="n">append</span><span class="p">(</span><span class="n">ridgeLines</span><span class="p">)</span>
+    
+    <span class="k">return</span> <span class="n">ridgeLinesList</span>
+
+<span class="k">def</span> <span class="nf">get_skeleton</span><span class="p">(</span><span class="n">ridgeLinesList</span><span class="p">):</span>
+    
+    <span class="n">skeletonList</span> <span class="o">=</span> <span class="p">[]</span>
+    
+    <span class="k">for</span> <span class="n">ridgeLines</span> <span class="ow">in</span> <span class="n">ridgeLinesList</span><span class="p">:</span>
+        
+        <span class="n">skeleton</span> <span class="o">=</span> <span class="n">cv</span><span class="o">.</span><span class="n">ximgproc</span><span class="o">.</span><span class="n">thinning</span><span class="p">(</span><span class="n">ridgeLines</span><span class="p">,</span> <span class="n">thinningType</span> <span class="o">=</span> <span class="n">cv</span><span class="o">.</span><span class="n">ximgproc</span><span class="o">.</span><span class="n">THINNING_GUOHALL</span><span class="p">)</span>
+        <span class="n">skeletonList</span><span class="o">.</span><span class="n">append</span><span class="p">(</span><span class="n">skeleton</span><span class="p">)</span>
+    
+    <span class="k">return</span> <span class="n">skeletonList</span>
+
+<span class="k">def</span> <span class="nf">compute_crossing_number</span><span class="p">(</span><span class="n">values</span><span class="p">):</span>
+    <span class="k">return</span> <span class="n">np</span><span class="o">.</span><span class="n">count_nonzero</span><span class="p">(</span><span class="n">values</span> <span class="o">&lt;</span> <span class="n">np</span><span class="o">.</span><span class="n">roll</span><span class="p">(</span><span class="n">values</span><span class="p">,</span> <span class="o">-</span><span class="mi">1</span><span class="p">))</span>
+
+<span class="k">def</span> <span class="nf">create_cn_filter</span><span class="p">():</span>
+    
+    <span class="n">cnFilter</span> <span class="o">=</span> <span class="n">np</span><span class="o">.</span><span class="n">array</span><span class="p">([[</span>  <span class="mi">1</span><span class="p">,</span>  <span class="mi">2</span><span class="p">,</span>  <span class="mi">4</span><span class="p">],</span>
+                      <span class="p">[</span><span class="mi">128</span><span class="p">,</span>  <span class="mi">0</span><span class="p">,</span>  <span class="mi">8</span><span class="p">],</span>
+                      <span class="p">[</span> <span class="mi">64</span><span class="p">,</span> <span class="mi">32</span><span class="p">,</span> <span class="mi">16</span><span class="p">]</span>
+                     <span class="p">])</span>
+    
+    <span class="k">return</span> <span class="n">cnFilter</span>
+
+<span class="k">def</span> <span class="nf">get_cn</span><span class="p">(</span><span class="n">skeletonList</span><span class="p">):</span>
+    
+    
+    
+    <span class="n">allEightNeighbors</span> <span class="o">=</span> <span class="p">[</span><span class="n">np</span><span class="o">.</span><span class="n">array</span><span class="p">([</span><span class="nb">int</span><span class="p">(</span><span class="n">d</span><span class="p">)</span> <span class="k">for</span> <span class="n">d</span> <span class="ow">in</span> <span class="sa">f</span><span class="s1">'</span><span class="si">{</span><span class="n">x</span><span class="si">:</span><span class="s1">08b</span><span class="si">}</span><span class="s1">'</span><span class="p">])[::</span><span class="o">-</span><span class="mi">1</span><span class="p">]</span> <span class="k">for</span> <span class="n">x</span> <span class="ow">in</span> <span class="nb">range</span><span class="p">(</span><span class="mi">256</span><span class="p">)]</span>
+    <span class="n">cnLUT</span> <span class="o">=</span> <span class="n">np</span><span class="o">.</span><span class="n">array</span><span class="p">([</span><span class="n">compute_crossing_number</span><span class="p">(</span><span class="n">x</span><span class="p">)</span> <span class="k">for</span> <span class="n">x</span> <span class="ow">in</span> <span class="n">allEightNeighbors</span><span class="p">])</span><span class="o">.</span><span class="n">astype</span><span class="p">(</span><span class="n">np</span><span class="o">.</span><span class="n">uint8</span><span class="p">)</span>
+    
+    <span class="n">skeleton01List</span> <span class="o">=</span> <span class="p">[]</span>
+    
+    <span class="k">for</span> <span class="n">skeleton</span> <span class="ow">in</span> <span class="n">skeletonList</span><span class="p">:</span>
+        
+        <span class="n">skeleton01</span> <span class="o">=</span> <span class="n">np</span><span class="o">.</span><span class="n">where</span><span class="p">(</span><span class="n">skeleton</span><span class="o">!=</span><span class="mi">0</span><span class="p">,</span> <span class="mi">1</span><span class="p">,</span> <span class="mi">0</span><span class="p">)</span><span class="o">.</span><span class="n">astype</span><span class="p">(</span><span class="n">np</span><span class="o">.</span><span class="n">uint8</span><span class="p">)</span>
+        <span class="n">skeleton01List</span><span class="o">.</span><span class="n">append</span><span class="p">(</span><span class="n">skeleton01</span><span class="p">)</span>
+    
+    <span class="n">neighbourValsList</span> <span class="o">=</span> <span class="p">[]</span>
+    
+    <span class="k">for</span> <span class="n">skeleton01</span> <span class="ow">in</span> <span class="n">skeleton01List</span><span class="p">:</span>
+        
+        <span class="n">neighbourVals</span> <span class="o">=</span> <span class="n">cv</span><span class="o">.</span><span class="n">filter2D</span><span class="p">(</span><span class="n">skeleton01</span><span class="p">,</span> <span class="o">-</span><span class="mi">1</span><span class="p">,</span> <span class="n">create_cn_filter</span><span class="p">(),</span> <span class="n">borderType</span> <span class="o">=</span> <span class="n">cv</span><span class="o">.</span><span class="n">BORDER_CONSTANT</span><span class="p">)</span>
+        <span class="n">neighbourValsList</span><span class="o">.</span><span class="n">append</span><span class="p">(</span><span class="n">neighbourVals</span><span class="p">)</span>
+    
+    <span class="n">cnList</span> <span class="o">=</span> <span class="p">[]</span>
+    
+    <span class="k">for</span> <span class="n">skeleton</span><span class="p">,</span> <span class="n">neighbourVals</span> <span class="ow">in</span> <span class="nb">zip</span><span class="p">(</span><span class="n">skeletonList</span><span class="p">,</span> <span class="n">neighbourValsList</span><span class="p">):</span>
+        
+        <span class="n">cn</span> <span class="o">=</span> <span class="n">cv</span><span class="o">.</span><span class="n">LUT</span><span class="p">(</span><span class="n">neighbourVals</span><span class="p">,</span> <span class="n">cnLUT</span><span class="p">)</span>
+        <span class="n">cn</span><span class="p">[</span><span class="n">skeleton</span> <span class="o">==</span> <span class="mi">0</span><span class="p">]</span> <span class="o">=</span> <span class="mi">0</span>
+        <span class="n">cnList</span><span class="o">.</span><span class="n">append</span><span class="p">(</span><span class="n">cn</span><span class="p">)</span>
+        
+    <span class="k">return</span> <span class="n">neighbourValsList</span><span class="p">,</span> <span class="n">allEightNeighbors</span><span class="p">,</span> <span class="n">cnList</span>
+
+<span class="k">def</span> <span class="nf">get_minutiae</span><span class="p">(</span><span class="n">cnList</span><span class="p">):</span>
+    
+    <span class="n">minutiaeList</span> <span class="o">=</span> <span class="p">[]</span>
+    
+    <span class="k">for</span> <span class="n">cn</span> <span class="ow">in</span> <span class="n">cnList</span><span class="p">:</span>
+        
+        <span class="n">minutiae</span> <span class="o">=</span> <span class="p">[(</span><span class="n">x</span><span class="p">,</span> <span class="n">y</span><span class="p">,</span> <span class="n">cn</span><span class="p">[</span><span class="n">y</span><span class="p">,</span> <span class="n">x</span><span class="p">]</span><span class="o">==</span><span class="mi">1</span><span class="p">)</span> <span class="k">for</span> <span class="n">y</span><span class="p">,</span> <span class="n">x</span> <span class="ow">in</span> <span class="nb">zip</span><span class="p">(</span><span class="o">*</span><span class="n">np</span><span class="o">.</span><span class="n">where</span><span class="p">(</span><span class="n">np</span><span class="o">.</span><span class="n">isin</span><span class="p">(</span><span class="n">cn</span><span class="p">,</span> <span class="p">[</span><span class="mi">1</span><span class="p">,</span><span class="mi">3</span><span class="p">])))]</span>
+        <span class="n">minutiaeList</span><span class="o">.</span><span class="n">append</span><span class="p">(</span><span class="n">minutiae</span><span class="p">)</span>
+    
+    <span class="k">return</span> <span class="n">minutiaeList</span>
+
+<span class="k">def</span> <span class="nf">get_mask_distance</span><span class="p">(</span><span class="n">maskList</span><span class="p">):</span>
+    
+    <span class="n">maskDistList</span> <span class="o">=</span> <span class="p">[]</span>
+    
+    <span class="k">for</span> <span class="n">mask</span> <span class="ow">in</span> <span class="n">maskList</span><span class="p">:</span>
+        
+        <span class="n">maskDist</span> <span class="o">=</span> <span class="n">cv</span><span class="o">.</span><span class="n">distanceTransform</span><span class="p">(</span>
+            <span class="n">cv</span><span class="o">.</span><span class="n">copyMakeBorder</span><span class="p">(</span><span class="n">mask</span><span class="p">,</span> <span class="mi">1</span><span class="p">,</span> <span class="mi">1</span><span class="p">,</span> <span class="mi">1</span><span class="p">,</span> <span class="mi">1</span><span class="p">,</span> 
+                              <span class="n">cv</span><span class="o">.</span><span class="n">BORDER_CONSTANT</span><span class="p">),</span> <span class="n">cv</span><span class="o">.</span><span class="n">DIST_C</span><span class="p">,</span> <span class="mi">3</span><span class="p">)[</span><span class="mi">1</span><span class="p">:</span><span class="o">-</span><span class="mi">1</span><span class="p">,</span><span class="mi">1</span><span class="p">:</span><span class="o">-</span><span class="mi">1</span><span class="p">]</span>
+        
+        <span class="n">maskDistList</span><span class="o">.</span><span class="n">append</span><span class="p">(</span><span class="n">maskDist</span><span class="p">)</span>
+
+    <span class="k">return</span> <span class="n">maskDistList</span>
+
+<span class="k">def</span> <span class="nf">get_filt_minutiae</span><span class="p">(</span><span class="n">maskDistList</span><span class="p">,</span> <span class="n">minutiaeList</span><span class="p">):</span>
+    
+    <span class="n">filtMinutiaeList</span> <span class="o">=</span> <span class="p">[]</span>
+    
+    <span class="k">for</span> <span class="n">maskDist</span><span class="p">,</span> <span class="n">minutiae</span> <span class="ow">in</span> <span class="nb">zip</span><span class="p">(</span><span class="n">maskDistList</span><span class="p">,</span> <span class="n">minutiaeList</span><span class="p">):</span>
+        
+        <span class="n">filteredMinutiae</span> <span class="o">=</span> <span class="nb">list</span><span class="p">(</span><span class="nb">filter</span><span class="p">(</span><span class="k">lambda</span> <span class="n">m</span><span class="p">:</span> <span class="n">maskDist</span><span class="p">[</span><span class="n">m</span><span class="p">[</span><span class="mi">1</span><span class="p">],</span> <span class="n">m</span><span class="p">[</span><span class="mi">0</span><span class="p">]]</span><span class="o">&gt;</span><span class="mi">10</span><span class="p">,</span>
+                                       <span class="n">minutiae</span><span class="p">))</span>
+        
+        <span class="n">filtMinutiaeList</span><span class="o">.</span><span class="n">append</span><span class="p">(</span><span class="n">filteredMinutiae</span><span class="p">)</span>
+        
+    <span class="k">return</span> <span class="n">filtMinutiaeList</span>
+
+<span class="k">def</span> <span class="nf">compute_next_ridge_following_directions</span><span class="p">(</span><span class="n">prevDirection</span><span class="p">,</span> <span class="n">values</span><span class="p">):</span>
+        
+    <span class="n">nextPos</span> <span class="o">=</span> <span class="n">np</span><span class="o">.</span><span class="n">argwhere</span><span class="p">(</span><span class="n">values</span><span class="o">!=</span><span class="mi">0</span><span class="p">)</span><span class="o">.</span><span class="n">ravel</span><span class="p">()</span><span class="o">.</span><span class="n">tolist</span><span class="p">()</span>
+    
+    <span class="k">if</span> <span class="nb">len</span><span class="p">(</span><span class="n">nextPos</span><span class="p">)</span> <span class="o">&gt;</span> <span class="mi">0</span> <span class="ow">and</span> <span class="n">prevDirection</span> <span class="o">!=</span> <span class="mi">8</span><span class="p">:</span>
+        <span class="c1"># There is a previous direction: return all the next directions, sorted</span>
+        <span class="c1"># according to the distance from it, except the direction, if any, </span>
+        <span class="c1"># that corresponds to the previous position</span>
+                       
+        <span class="n">nextPos</span><span class="o">.</span><span class="n">sort</span><span class="p">(</span><span class="n">key</span> <span class="o">=</span> <span class="k">lambda</span> <span class="n">d</span><span class="p">:</span> <span class="mi">4</span> <span class="o">-</span> <span class="nb">abs</span><span class="p">(</span><span class="nb">abs</span><span class="p">(</span><span class="n">d</span> <span class="o">-</span> <span class="n">prevDirection</span><span class="p">)</span> <span class="o">-</span> <span class="mi">4</span><span class="p">))</span>
+        
+        <span class="k">if</span> <span class="n">nextPos</span><span class="p">[</span><span class="o">-</span><span class="mi">1</span><span class="p">]</span> <span class="o">==</span> <span class="p">(</span><span class="n">prevDirection</span> <span class="o">+</span> <span class="mi">4</span><span class="p">)</span> <span class="o">%</span> <span class="mi">8</span><span class="p">:</span> <span class="c1"># the direction of the previous position is the opposite one</span>
+            <span class="n">nextPos</span> <span class="o">=</span> <span class="n">nextPos</span><span class="p">[:</span><span class="o">-</span><span class="mi">1</span><span class="p">]</span> <span class="c1"># removes it</span>
+            
+    <span class="k">return</span> <span class="n">nextPos</span>
+
+<span class="k">def</span> <span class="nf">create_nd_LUT</span><span class="p">(</span><span class="n">allEightNeighbors</span><span class="p">):</span>
+    
+    <span class="n">r2</span> <span class="o">=</span> <span class="mi">2</span><span class="o">**</span><span class="mf">0.5</span> <span class="c1"># sqrt(2)</span>
+    
+    <span class="c1"># The eight possible (x, y) offsets with each corresponding Euclidean distance</span>
+    <span class="n">xySteps</span> <span class="o">=</span> <span class="p">[(</span><span class="o">-</span><span class="mi">1</span><span class="p">,</span> <span class="o">-</span><span class="mi">1</span><span class="p">,</span> <span class="n">r2</span><span class="p">),(</span><span class="mi">0</span><span class="p">,</span> <span class="o">-</span><span class="mi">1</span><span class="p">,</span> <span class="mi">1</span><span class="p">),(</span><span class="mi">1</span><span class="p">,</span> <span class="o">-</span><span class="mi">1</span><span class="p">,</span> <span class="n">r2</span><span class="p">),</span> <span class="p">(</span><span class="mi">1</span><span class="p">,</span> <span class="mi">0</span><span class="p">,</span> <span class="mi">1</span><span class="p">),</span> <span class="p">(</span><span class="mi">1</span><span class="p">,</span> <span class="mi">1</span><span class="p">,</span> <span class="n">r2</span><span class="p">),</span> 
+               <span class="p">(</span> <span class="mi">0</span><span class="p">,</span> <span class="mi">1</span><span class="p">,</span> <span class="mi">1</span><span class="p">),</span> <span class="p">(</span><span class="o">-</span><span class="mi">1</span><span class="p">,</span> <span class="mi">1</span><span class="p">,</span> <span class="n">r2</span><span class="p">),(</span><span class="o">-</span><span class="mi">1</span><span class="p">,</span> <span class="mi">0</span><span class="p">,</span> <span class="mi">1</span><span class="p">)]</span>
+
+    <span class="n">ndLUT</span> <span class="o">=</span> <span class="p">[[</span><span class="n">compute_next_ridge_following_directions</span><span class="p">(</span><span class="n">pd</span><span class="p">,</span> <span class="n">x</span><span class="p">)</span> <span class="k">for</span> <span class="n">pd</span> <span class="ow">in</span> 
+              <span class="nb">range</span><span class="p">(</span><span class="mi">9</span><span class="p">)]</span> <span class="k">for</span> <span class="n">x</span> <span class="ow">in</span> <span class="n">allEightNeighbors</span><span class="p">]</span>
+    
+    <span class="k">return</span> <span class="n">xySteps</span><span class="p">,</span> <span class="n">ndLUT</span>
+
+
+
+<span class="k">class</span> <span class="nc">MinutiaeDirections</span><span class="p">:</span>
+    
+    <span class="k">def</span> <span class="fm">__init__</span><span class="p">(</span><span class="bp">self</span><span class="p">,</span> <span class="n">neighbourValsList</span><span class="p">,</span> <span class="n">ndLUT</span><span class="p">,</span> <span class="n">cnList</span><span class="p">,</span> <span class="n">xySteps</span><span class="p">,</span> <span class="n">fpList</span><span class="p">):</span>
+        
+        <span class="bp">self</span><span class="o">.</span><span class="n">neighbourValsList</span> <span class="o">=</span> <span class="n">neighbourValsList</span>
+        <span class="bp">self</span><span class="o">.</span><span class="n">ndLUT</span> <span class="o">=</span> <span class="n">ndLUT</span>
+        <span class="bp">self</span><span class="o">.</span><span class="n">cnList</span> <span class="o">=</span> <span class="n">cnList</span>
+        <span class="bp">self</span><span class="o">.</span><span class="n">xySteps</span> <span class="o">=</span> <span class="n">xySteps</span>
+        <span class="bp">self</span><span class="o">.</span><span class="n">fpList</span> <span class="o">=</span> <span class="n">fpList</span>
+        
+    <span class="k">def</span> <span class="nf">follow_ridge_and_compute_angle</span><span class="p">(</span><span class="bp">self</span><span class="p">,</span> <span class="n">valTuple</span><span class="p">,</span> <span class="n">x</span><span class="p">,</span> <span class="n">y</span><span class="p">,</span> <span class="n">d</span> <span class="o">=</span> <span class="mi">8</span><span class="p">):</span>
+        
+        <span class="n">ndLUT</span> <span class="o">=</span> <span class="bp">self</span><span class="o">.</span><span class="n">ndLUT</span>
+        <span class="n">xySteps</span> <span class="o">=</span> <span class="bp">self</span><span class="o">.</span><span class="n">xySteps</span>
+        <span class="n">neighbourVals</span><span class="p">,</span> <span class="n">cn</span> <span class="o">=</span> <span class="n">valTuple</span>
+        <span class="n">px</span><span class="p">,</span> <span class="n">py</span> <span class="o">=</span> <span class="n">x</span><span class="p">,</span> <span class="n">y</span>
+        <span class="n">length</span> <span class="o">=</span> <span class="mf">0.0</span>
+
+        <span class="c1"># ndLUT = ridgeCtx.ndLUT</span>
+        <span class="c1"># neighbourValsList = ridgeCtx.neighbourValsList</span>
+        <span class="c1"># cnList = ridgeCtx.cnList</span>
+        <span class="c1"># xySteps = ridgeCtx.xySteps</span>
+            
+                
+        <span class="k">while</span> <span class="n">length</span> <span class="o">&lt;</span> <span class="mi">20</span><span class="p">:</span> <span class="c1"># max length followed</span>
+            <span class="c1"># print("length = %d" % length)</span>
+            <span class="c1"># print("ndLUT: %s" % ndLUT)</span>
+            <span class="c1"># print("py = %d" % py)</span>
+            <span class="c1"># print("px = %d" % px)</span>
+            <span class="c1"># print("d = %d" % d)</span>
+            <span class="c1">#print("At start of loop - length: {}, px: {}, py: {}, d: {}"\</span>
+            <span class="c1">#     .format(length, px, py, d))</span>
+            <span class="n">nextDirections</span> <span class="o">=</span> <span class="n">ndLUT</span><span class="p">[</span><span class="n">neighbourVals</span><span class="p">[</span><span class="n">py</span><span class="p">,</span><span class="n">px</span><span class="p">]][</span><span class="n">d</span><span class="p">]</span>
+            <span class="c1">#print("nextDirections: {}".format(nextDirections))</span>
+            
+            <span class="k">if</span> <span class="nb">len</span><span class="p">(</span><span class="n">nextDirections</span><span class="p">)</span> <span class="o">==</span> <span class="mi">0</span><span class="p">:</span>
+                
+                <span class="c1">#print("line 460")</span>
+                <span class="k">break</span>
+            
+            <span class="c1"># Need to check ALL possible next directions</span>
+            <span class="k">if</span> <span class="p">(</span><span class="nb">any</span><span class="p">(</span><span class="n">cn</span><span class="p">[</span><span class="n">py</span> <span class="o">+</span> <span class="n">xySteps</span><span class="p">[</span><span class="n">nd</span><span class="p">][</span><span class="mi">1</span><span class="p">],</span> <span class="n">px</span> <span class="o">+</span> <span class="n">xySteps</span><span class="p">[</span><span class="n">nd</span><span class="p">][</span><span class="mi">0</span><span class="p">]]</span> <span class="o">!=</span> <span class="mi">2</span> <span class="k">for</span> <span class="n">nd</span> 
+                    <span class="ow">in</span> <span class="n">nextDirections</span><span class="p">)):</span>
+                <span class="c1">#print("line 466")</span>
+                <span class="k">break</span> <span class="c1"># another minutia found: we stop here</span>
+            
+            <span class="c1"># Only the first direction has to be followed</span>
+
+            <span class="n">d</span> <span class="o">=</span> <span class="n">nextDirections</span><span class="p">[</span><span class="mi">0</span><span class="p">]</span>
+            <span class="n">ox</span><span class="p">,</span> <span class="n">oy</span><span class="p">,</span> <span class="n">l</span> <span class="o">=</span> <span class="n">xySteps</span><span class="p">[</span><span class="n">d</span><span class="p">]</span>
+            <span class="c1">#print("Before update - ox: {}, oy: {}, l: {}, px: {}, py: {}"\</span>
+            <span class="c1">#     .format(ox, oy, l, px, py))</span>
+            <span class="n">px</span> <span class="o">+=</span> <span class="n">ox</span> <span class="p">;</span> <span class="n">py</span> <span class="o">+=</span> <span class="n">oy</span> <span class="p">;</span> <span class="n">length</span> <span class="o">+=</span> <span class="n">l</span>
+
+            <span class="c1">#print("After update - px: {}, py: {}, length: {}".\</span>
+                <span class="c1"># format(px, py, length))</span>
+
+            <span class="c1"># check if the minimum length for a valid direction has been reached</span>
+
+        <span class="k">return</span> <span class="n">math</span><span class="o">.</span><span class="n">atan2</span><span class="p">(</span><span class="o">-</span><span class="n">py</span><span class="o">+</span><span class="n">y</span><span class="p">,</span> <span class="n">px</span><span class="o">-</span><span class="n">x</span><span class="p">)</span> <span class="k">if</span> <span class="n">length</span> <span class="o">&gt;=</span> <span class="mi">10</span> <span class="k">else</span> <span class="kc">None</span>
+
+    <span class="k">def</span> <span class="nf">valid_minutiae</span><span class="p">(</span><span class="bp">self</span><span class="p">,</span> <span class="n">filtMinutiaeList</span><span class="p">):</span>
+        
+        <span class="c1">#print("line 486")</span>
+        <span class="n">ndLUT</span> <span class="o">=</span> <span class="bp">self</span><span class="o">.</span><span class="n">ndLUT</span>
+        <span class="n">neighbourValsList</span> <span class="o">=</span> <span class="bp">self</span><span class="o">.</span><span class="n">neighbourValsList</span>
+        <span class="n">cnList</span> <span class="o">=</span> <span class="bp">self</span><span class="o">.</span><span class="n">cnList</span>
+        <span class="n">xySteps</span> <span class="o">=</span> <span class="bp">self</span><span class="o">.</span><span class="n">xySteps</span>
+        <span class="n">fpList</span> <span class="o">=</span> <span class="bp">self</span><span class="o">.</span><span class="n">fpList</span>
+        
+        <span class="n">validMinutiaeList</span> <span class="o">=</span> <span class="p">[]</span>
+        
+        <span class="k">for</span> <span class="n">filteredMinutiae</span><span class="p">,</span> <span class="n">neighbourVals</span><span class="p">,</span> <span class="n">cn</span><span class="p">,</span> <span class="p">(</span><span class="n">fingerprints</span><span class="p">,</span> <span class="n">filename</span><span class="p">)</span> \
+            <span class="ow">in</span> <span class="nb">zip</span><span class="p">(</span><span class="n">filtMinutiaeList</span><span class="p">,</span> <span class="n">neighbourValsList</span><span class="p">,</span> <span class="n">cnList</span><span class="p">,</span> <span class="n">fpList</span><span class="p">):</span>
+                
+            <span class="n">validMinutiae</span> <span class="o">=</span> <span class="p">[]</span>
+            
+            <span class="k">for</span> <span class="p">(</span><span class="n">x</span><span class="p">,</span> <span class="n">y</span><span class="p">,</span> <span class="n">term</span><span class="p">)</span> <span class="ow">in</span> <span class="n">filteredMinutiae</span><span class="p">:</span>
+                
+
+                <span class="n">d</span> <span class="o">=</span> <span class="kc">None</span>
+        
+                <span class="k">if</span> <span class="n">term</span><span class="p">:</span> <span class="c1"># termination: simply follow and compute the direction</span>
+                    
+                    <span class="c1">#print("line 503")</span>
+                    <span class="n">d</span> <span class="o">=</span> <span class="bp">self</span><span class="o">.</span><span class="n">follow_ridge_and_compute_angle</span><span class="p">((</span><span class="n">neighbourVals</span><span class="p">,</span> <span class="n">cn</span><span class="p">)</span>
+                                                       <span class="p">,</span> <span class="n">x</span><span class="p">,</span> <span class="n">y</span><span class="p">)</span>
+
+                    
+                <span class="k">else</span><span class="p">:</span> <span class="c1"># bifurcation: follow each of the three branches</span>
+                    
+                    <span class="c1"># 8 means: no previous direction</span>
+                    
+                    <span class="n">dirs</span> <span class="o">=</span> <span class="n">ndLUT</span><span class="p">[</span><span class="n">neighbourVals</span><span class="p">[</span><span class="n">y</span><span class="p">,</span><span class="n">x</span><span class="p">]][</span><span class="mi">8</span><span class="p">]</span>
+                        
+                    <span class="k">if</span> <span class="nb">len</span><span class="p">(</span><span class="n">dirs</span><span class="p">)</span><span class="o">==</span><span class="mi">3</span><span class="p">:</span> <span class="c1"># only if there are exactly three branches</span>
+                        
+                        <span class="c1">#print("line 516")</span>
+                        <span class="n">angles</span> <span class="o">=</span> <span class="p">[</span><span class="bp">self</span><span class="o">.</span><span class="n">follow_ridge_and_compute_angle</span> \
+                                <span class="p">((</span><span class="n">neighbourVals</span><span class="p">,</span> <span class="n">cn</span><span class="p">),</span> <span class="n">x</span> <span class="o">+</span> <span class="n">xySteps</span><span class="p">[</span><span class="n">d</span><span class="p">][</span><span class="mi">0</span><span class="p">],</span> \
+                                    <span class="n">y</span> <span class="o">+</span> <span class="n">xySteps</span><span class="p">[</span><span class="n">d</span><span class="p">][</span><span class="mi">1</span><span class="p">],</span> <span class="n">d</span><span class="p">)</span> <span class="k">for</span> <span class="n">d</span> <span class="ow">in</span> <span class="n">dirs</span><span class="p">]</span>
+
+                        <span class="k">if</span> <span class="nb">all</span><span class="p">(</span><span class="n">a</span> <span class="ow">is</span> <span class="ow">not</span> <span class="kc">None</span> <span class="k">for</span> <span class="n">a</span> <span class="ow">in</span> <span class="n">angles</span><span class="p">):</span>
+                            
+                            <span class="n">a1</span><span class="p">,</span> <span class="n">a2</span> <span class="o">=</span> <span class="nb">min</span><span class="p">(((</span><span class="n">angles</span><span class="p">[</span><span class="n">i</span><span class="p">],</span> \
+                                        <span class="n">angles</span><span class="p">[(</span><span class="n">i</span> <span class="o">+</span> <span class="mi">1</span><span class="p">)</span> <span class="o">%</span> <span class="mi">3</span><span class="p">])</span> \
+                                        <span class="k">for</span> <span class="n">i</span> <span class="ow">in</span> <span class="nb">range</span><span class="p">(</span><span class="mi">3</span><span class="p">)),</span> <span class="n">key</span><span class="o">=</span><span class="k">lambda</span> \
+                                        <span class="n">t</span><span class="p">:</span> <span class="n">angle_abs_difference</span><span class="p">(</span><span class="n">t</span><span class="p">[</span><span class="mi">0</span><span class="p">],</span> <span class="n">t</span><span class="p">[</span><span class="mi">1</span><span class="p">]))</span>
+                            
+                            
+                            <span class="n">d</span> <span class="o">=</span> <span class="n">angle_mean</span><span class="p">(</span><span class="n">a1</span><span class="p">,</span> <span class="n">a2</span><span class="p">)</span>  
+                                        
+                <span class="k">if</span> <span class="n">d</span> <span class="ow">is</span> <span class="ow">not</span> <span class="kc">None</span><span class="p">:</span>
+                    
+                    <span class="n">validMinutiae</span><span class="o">.</span><span class="n">append</span><span class="p">((</span><span class="n">x</span><span class="p">,</span> <span class="n">y</span><span class="p">,</span> <span class="n">term</span><span class="p">,</span> <span class="n">d</span><span class="p">))</span>
+
+            <span class="n">validMinutiaeList</span><span class="o">.</span><span class="n">append</span><span class="p">((</span><span class="n">validMinutiae</span><span class="p">,</span> <span class="n">filename</span><span class="p">))</span>
+                
+        <span class="c1"># with open('Valid Minutiae.csv', 'w', newline='') as file:</span>
+        <span class="c1">#     writer = csv.writer(file)</span>
+        <span class="c1">#     # Write all rows at once</span>
+        <span class="c1">#     writer.writerows(validMinutiaeList)</span>
+            
+        <span class="k">return</span> <span class="n">validMinutiaeList</span>
+    
+<span class="k">class</span> <span class="nc">LocalStructs</span><span class="p">:</span>
+    
+    <span class="k">def</span> <span class="fm">__init__</span> <span class="p">(</span><span class="bp">self</span><span class="p">,</span> <span class="n">validMinutiaeList</span><span class="p">):</span>
+        
+        <span class="bp">self</span><span class="o">.</span><span class="n">mccRadius</span> <span class="o">=</span> <span class="mi">70</span>
+        <span class="bp">self</span><span class="o">.</span><span class="n">mccSize</span> <span class="o">=</span> <span class="mi">16</span>
+        <span class="bp">self</span><span class="o">.</span><span class="n">g</span> <span class="o">=</span> <span class="mi">2</span> <span class="o">*</span> <span class="bp">self</span><span class="o">.</span><span class="n">mccRadius</span> <span class="o">/</span> <span class="bp">self</span><span class="o">.</span><span class="n">mccSize</span>
+        <span class="bp">self</span><span class="o">.</span><span class="n">x</span> <span class="o">=</span> <span class="n">np</span><span class="o">.</span><span class="n">arange</span><span class="p">(</span><span class="bp">self</span><span class="o">.</span><span class="n">mccSize</span><span class="p">)</span> <span class="o">*</span> <span class="bp">self</span><span class="o">.</span><span class="n">g</span> <span class="o">-</span> <span class="p">(</span><span class="bp">self</span><span class="o">.</span><span class="n">mccSize</span> <span class="o">/</span> <span class="mi">2</span><span class="p">)</span> <span class="o">*</span> \
+            <span class="bp">self</span><span class="o">.</span><span class="n">g</span> <span class="o">+</span> <span class="bp">self</span><span class="o">.</span><span class="n">g</span> <span class="o">/</span> <span class="mi">2</span>
+        <span class="bp">self</span><span class="o">.</span><span class="n">y</span> <span class="o">=</span> <span class="bp">self</span><span class="o">.</span><span class="n">x</span><span class="p">[</span><span class="o">...</span><span class="p">,</span> <span class="n">np</span><span class="o">.</span><span class="n">newaxis</span><span class="p">]</span>
+        <span class="bp">self</span><span class="o">.</span><span class="n">iy</span><span class="p">,</span> <span class="bp">self</span><span class="o">.</span><span class="n">ix</span> <span class="o">=</span> <span class="n">np</span><span class="o">.</span><span class="n">nonzero</span><span class="p">(</span><span class="bp">self</span><span class="o">.</span><span class="n">x</span><span class="o">**</span><span class="mi">2</span> <span class="o">+</span> <span class="bp">self</span><span class="o">.</span><span class="n">y</span><span class="o">**</span><span class="mi">2</span> <span class="o">&lt;=</span> \
+            <span class="bp">self</span><span class="o">.</span><span class="n">mccRadius</span><span class="o">**</span><span class="mi">2</span><span class="p">)</span>
+        <span class="bp">self</span><span class="o">.</span><span class="n">refCellCoords</span> <span class="o">=</span> <span class="n">np</span><span class="o">.</span><span class="n">column_stack</span><span class="p">((</span><span class="bp">self</span><span class="o">.</span><span class="n">x</span><span class="p">[</span><span class="bp">self</span><span class="o">.</span><span class="n">ix</span><span class="p">],</span> <span class="bp">self</span><span class="o">.</span><span class="n">x</span><span class="p">[</span><span class="bp">self</span><span class="o">.</span><span class="n">iy</span><span class="p">]))</span>
+        <span class="bp">self</span><span class="o">.</span><span class="n">mccSigmaS</span> <span class="o">=</span> <span class="mf">7.0</span>
+        <span class="bp">self</span><span class="o">.</span><span class="n">mccTauPsi</span> <span class="o">=</span> <span class="mf">400.0</span>
+        <span class="bp">self</span><span class="o">.</span><span class="n">mccMuPsi</span> <span class="o">=</span> <span class="mf">1e-2</span>
+        
+        <span class="bp">self</span><span class="o">.</span><span class="n">validMinutiaeList</span> <span class="o">=</span> <span class="n">validMinutiaeList</span>
+        
+    <span class="k">def</span> <span class="nf">Gs</span><span class="p">(</span><span class="bp">self</span><span class="p">,</span> <span class="n">tSqr</span><span class="p">):</span>
+        <span class="c1"># Gaussian function with zero mean and mcc_sigma_s standard deviation,</span>
+        <span class="c1"># see eq. (7) in MCC paper</span>
+        <span class="k">return</span> <span class="n">np</span><span class="o">.</span><span class="n">exp</span><span class="p">(</span><span class="o">-</span><span class="mf">0.5</span> <span class="o">*</span> <span class="n">tSqr</span> <span class="o">/</span> <span class="p">(</span><span class="bp">self</span><span class="o">.</span><span class="n">mccSigmaS</span><span class="o">**</span><span class="mi">2</span><span class="p">))</span> <span class="o">/</span> <span class="p">(</span><span class="n">math</span><span class="o">.</span><span class="n">tau</span><span class="o">**</span><span class="mf">0.5</span> <span class="o">*</span> <span class="bp">self</span><span class="o">.</span><span class="n">mccSigmaS</span><span class="p">)</span>
+    
+    <span class="k">def</span> <span class="nf">Psi</span><span class="p">(</span><span class="bp">self</span><span class="p">,</span> <span class="n">v</span><span class="p">):</span>
+        <span class="c1"># Sigmoid function that limits the contribution of dense minutiae </span>
+        <span class="c1"># clusters, see eq. (4)-(5) in MCC paper</span>
+        <span class="k">return</span> <span class="mf">1.</span> <span class="o">/</span> <span class="p">(</span><span class="mf">1.</span> <span class="o">+</span> <span class="n">np</span><span class="o">.</span><span class="n">exp</span><span class="p">(</span><span class="o">-</span><span class="bp">self</span><span class="o">.</span><span class="n">mccTauPsi</span> <span class="o">*</span> <span class="p">(</span><span class="n">v</span> <span class="o">-</span> <span class="bp">self</span><span class="o">.</span><span class="n">mccMuPsi</span><span class="p">)))</span>
+        
+    <span class="k">def</span> <span class="nf">thread_calc_cell_coords</span><span class="p">(</span><span class="bp">self</span><span class="p">,</span> <span class="n">xy</span><span class="p">):</span>
+        
+        <span class="n">cellCoords</span> <span class="o">=</span> <span class="n">np</span><span class="o">.</span><span class="n">transpose</span><span class="p">(</span><span class="n">rot</span><span class="nd">@self</span><span class="o">.</span><span class="n">refCellCoords</span><span class="o">.</span><span class="n">T</span> <span class="o">+</span> \
+                <span class="n">xy</span><span class="p">[:,</span> <span class="p">:,</span> <span class="n">np</span><span class="o">.</span><span class="n">newaxis</span><span class="p">],</span> <span class="p">[</span><span class="mi">0</span><span class="p">,</span> <span class="mi">2</span><span class="p">,</span> <span class="mi">1</span><span class="p">])</span>
+        
+        <span class="k">return</span> <span class="n">cellCords</span>
+    
+    <span class="k">def</span> <span class="nf">create_local_structs</span><span class="p">(</span><span class="bp">self</span><span class="p">):</span>
+        
+        <span class="n">xydList</span> <span class="o">=</span> <span class="p">[]</span>
+        
+        <span class="k">for</span> <span class="n">validMinutiae</span><span class="p">,</span> <span class="n">_</span> <span class="ow">in</span> <span class="bp">self</span><span class="o">.</span><span class="n">validMinutiaeList</span><span class="p">:</span>
+            
+            <span class="n">xyd</span> <span class="o">=</span> <span class="n">np</span><span class="o">.</span><span class="n">array</span><span class="p">([(</span><span class="n">x</span><span class="p">,</span> <span class="n">y</span><span class="p">,</span> <span class="n">d</span><span class="p">)</span> <span class="k">for</span> <span class="n">x</span><span class="p">,</span> <span class="n">y</span><span class="p">,</span> <span class="n">_</span><span class="p">,</span> <span class="n">d</span> <span class="ow">in</span> <span class="n">validMinutiae</span><span class="p">])</span>
+            <span class="n">xydList</span><span class="o">.</span><span class="n">append</span><span class="p">(</span><span class="n">xyd</span><span class="p">)</span>
+            
+        <span class="n">dCosList</span> <span class="o">=</span> <span class="p">[]</span>
+        <span class="n">dSinList</span> <span class="o">=</span> <span class="p">[]</span>
+        
+        <span class="k">for</span> <span class="n">xyd</span> <span class="ow">in</span> <span class="n">xydList</span><span class="p">:</span>
+            
+            <span class="n">dCos</span><span class="p">,</span> <span class="n">dSin</span> <span class="o">=</span> <span class="n">np</span><span class="o">.</span><span class="n">cos</span><span class="p">(</span><span class="n">xyd</span><span class="p">[:,</span> <span class="mi">2</span><span class="p">])</span><span class="o">.</span><span class="n">reshape</span><span class="p">((</span><span class="o">-</span><span class="mi">1</span><span class="p">,</span> <span class="mi">1</span><span class="p">,</span> <span class="mi">1</span><span class="p">)),</span> \
+                <span class="n">np</span><span class="o">.</span><span class="n">sin</span><span class="p">(</span><span class="n">xyd</span><span class="p">[:,</span> <span class="mi">2</span><span class="p">])</span><span class="o">.</span><span class="n">reshape</span><span class="p">((</span><span class="o">-</span><span class="mi">1</span><span class="p">,</span> <span class="mi">1</span><span class="p">,</span> <span class="mi">1</span><span class="p">))</span>
+                
+            <span class="n">dCosList</span><span class="o">.</span><span class="n">append</span><span class="p">(</span><span class="n">dCos</span><span class="p">)</span>
+            <span class="n">dSinList</span><span class="o">.</span><span class="n">append</span><span class="p">(</span><span class="n">dSin</span><span class="p">)</span>
+            
+        <span class="n">rotList</span> <span class="o">=</span> <span class="p">[]</span>
+        
+        <span class="k">for</span> <span class="n">dCos</span><span class="p">,</span> <span class="n">dSin</span> <span class="ow">in</span> <span class="nb">zip</span><span class="p">(</span><span class="n">dCosList</span><span class="p">,</span> <span class="n">dSinList</span><span class="p">):</span>
+            
+            <span class="n">rot</span> <span class="o">=</span> <span class="n">np</span><span class="o">.</span><span class="n">block</span><span class="p">([[</span><span class="n">dCos</span><span class="p">,</span> <span class="n">dSin</span><span class="p">],</span> <span class="p">[</span><span class="o">-</span><span class="n">dSin</span><span class="p">,</span> <span class="n">dCos</span><span class="p">]])</span>
+            <span class="n">rotList</span><span class="o">.</span><span class="n">append</span><span class="p">(</span><span class="n">rot</span><span class="p">)</span>
+        
+        <span class="n">xyList</span> <span class="o">=</span> <span class="p">[]</span>
+        
+        <span class="k">for</span> <span class="n">xyd</span><span class="p">,</span> <span class="p">(</span><span class="n">_</span><span class="p">,</span> <span class="n">filename</span><span class="p">)</span> <span class="ow">in</span> <span class="nb">zip</span><span class="p">(</span><span class="n">xydList</span><span class="p">,</span> <span class="bp">self</span><span class="o">.</span><span class="n">validMinutiaeList</span><span class="p">):</span>
+            
+            <span class="n">xy</span> <span class="o">=</span> <span class="n">xyd</span><span class="p">[:,</span> <span class="p">:</span><span class="mi">2</span><span class="p">]</span>
+            <span class="n">xyList</span><span class="o">.</span><span class="n">append</span><span class="p">((</span><span class="n">xy</span><span class="p">,</span> <span class="n">filename</span><span class="p">))</span>
+            
+        <span class="c1">#xyArray = np.concatenate(xyList, axis = 0)</span>
+        
+        <span class="n">localStructsList</span> <span class="o">=</span> <span class="p">[]</span>
+        <span class="n">distsList</span> <span class="o">=</span> <span class="p">[]</span>
+        
+        <span class="k">for</span> <span class="p">(</span><span class="n">xy</span><span class="p">,</span> <span class="n">filename</span><span class="p">),</span> <span class="n">rot</span> <span class="ow">in</span> <span class="nb">zip</span><span class="p">(</span><span class="n">xyList</span><span class="p">,</span> <span class="n">rotList</span><span class="p">):</span>
+            
+            <span class="n">cellCoords</span> <span class="o">=</span> <span class="n">np</span><span class="o">.</span><span class="n">transpose</span><span class="p">(</span><span class="n">rot</span><span class="nd">@self</span><span class="o">.</span><span class="n">refCellCoords</span><span class="o">.</span><span class="n">T</span> <span class="o">+</span> \
+                <span class="n">xy</span><span class="p">[:,</span> <span class="p">:,</span> <span class="n">np</span><span class="o">.</span><span class="n">newaxis</span><span class="p">],</span> <span class="p">[</span><span class="mi">0</span><span class="p">,</span> <span class="mi">2</span><span class="p">,</span> <span class="mi">1</span><span class="p">])</span>
+
+            <span class="n">dists</span> <span class="o">=</span> <span class="n">np</span><span class="o">.</span><span class="n">sum</span><span class="p">((</span><span class="n">cellCoords</span><span class="p">[:,</span> <span class="p">:,</span> <span class="n">np</span><span class="o">.</span><span class="n">newaxis</span><span class="p">,</span> <span class="p">:]</span> <span class="o">-</span> <span class="n">xy</span><span class="p">)</span> <span class="o">**</span> <span class="mi">2</span><span class="p">,</span> <span class="o">-</span><span class="mi">1</span><span class="p">)</span>
+            <span class="n">cs</span> <span class="o">=</span> <span class="bp">self</span><span class="o">.</span><span class="n">Gs</span><span class="p">(</span><span class="n">dists</span><span class="p">)</span>
+            <span class="n">diagIndices</span> <span class="o">=</span> <span class="n">np</span><span class="o">.</span><span class="n">arange</span><span class="p">(</span><span class="n">cs</span><span class="o">.</span><span class="n">shape</span><span class="p">[</span><span class="mi">0</span><span class="p">])</span>
+            <span class="n">cs</span><span class="p">[</span><span class="n">diagIndices</span><span class="p">,</span> <span class="p">:,</span> <span class="n">diagIndices</span><span class="p">]</span> <span class="o">=</span> <span class="mi">0</span>
+            <span class="n">localStructs</span> <span class="o">=</span> <span class="bp">self</span><span class="o">.</span><span class="n">Psi</span><span class="p">(</span><span class="n">np</span><span class="o">.</span><span class="n">sum</span><span class="p">(</span><span class="n">cs</span><span class="p">,</span> <span class="o">-</span><span class="mi">1</span><span class="p">))</span>
+            <span class="n">localStructsList</span><span class="o">.</span><span class="n">append</span><span class="p">((</span><span class="n">localStructs</span><span class="p">,</span> <span class="n">filename</span><span class="p">))</span>
+            
+        <span class="k">return</span> <span class="n">localStructsList</span>
+    
+<span class="k">class</span> <span class="nc">CompareFingerprint</span><span class="p">:</span>
+    
+    <span class="k">def</span> <span class="fm">__init__</span> <span class="p">(</span><span class="bp">self</span><span class="p">,</span> <span class="n">fingerprintsList</span><span class="p">,</span> <span class="n">validMinutiaeList</span><span class="p">,</span> <span class="n">localStructsList</span><span class="p">):</span>
+        
+        <span class="bp">self</span><span class="o">.</span><span class="n">fingerprintsList</span> <span class="o">=</span> <span class="n">fingerprintsList</span>
+        <span class="bp">self</span><span class="o">.</span><span class="n">validMinutiaeList</span> <span class="o">=</span> <span class="n">validMinutiaeList</span>
+        <span class="bp">self</span><span class="o">.</span><span class="n">localStructsList</span> <span class="o">=</span> <span class="n">localStructsList</span>
+    
+    <span class="k">def</span> <span class="nf">compare_fingerprints</span><span class="p">(</span><span class="bp">self</span><span class="p">,</span> <span class="n">target</span><span class="p">):</span>
+        <span class="k">pass</span>
+    
+<span class="k">def</span> <span class="nf">print_wd</span><span class="p">():</span>
+    <span class="c1"># Get the current working directory</span>
+    <span class="n">currentDirectory</span> <span class="o">=</span> <span class="n">os</span><span class="o">.</span><span class="n">getcwd</span><span class="p">()</span>
+
+    <span class="c1"># Print the current working directory</span>
+    <span class="nb">print</span><span class="p">(</span><span class="n">currentDirectory</span><span class="p">)</span>
+
+<span class="k">def</span> <span class="nf">analyse_fingerprints</span><span class="p">(</span><span class="n">filepath</span><span class="p">):</span>
+
+    <span class="n">fingerprintsList</span> <span class="o">=</span> <span class="n">read_fingerprints</span><span class="p">(</span><span class="n">filepath</span><span class="p">)</span>
+    <span class="n">GxList</span><span class="p">,</span> <span class="n">GyList</span><span class="p">,</span> <span class="n">Gx2List</span><span class="p">,</span> <span class="n">Gy2List</span><span class="p">,</span> <span class="n">GmList</span> <span class="o">=</span> <span class="n">calc_sobel</span><span class="p">(</span><span class="n">fingerprintsList</span><span class="p">)</span>
+    <span class="n">sumGm</span> <span class="o">=</span> <span class="n">sum_Gm</span><span class="p">(</span><span class="n">GmList</span><span class="p">)</span>
+    <span class="n">maskList</span> <span class="o">=</span> <span class="n">threshold_mask</span><span class="p">(</span><span class="n">sumGm</span><span class="p">)</span>
+    <span class="n">orientationsList</span><span class="p">,</span> <span class="n">strengthsList</span> <span class="o">=</span> <span class="n">ridge_orientation</span><span class="p">(</span><span class="n">GxList</span><span class="p">,</span> <span class="n">GyList</span><span class="p">,</span>\
+        <span class="n">Gx2List</span><span class="p">,</span> <span class="n">Gy2List</span><span class="p">)</span>
+    
+    <span class="n">regionList</span><span class="p">,</span> <span class="n">locMaxList</span><span class="p">,</span> <span class="n">xSigList</span> <span class="o">=</span> <span class="n">ridge_frequency</span><span class="p">(</span><span class="n">fingerprintsList</span><span class="p">)</span>
+    <span class="n">distanceList</span><span class="p">,</span> <span class="n">ridgePeriodList</span> <span class="o">=</span> <span class="n">ridge_period</span><span class="p">(</span><span class="n">locMaxList</span><span class="p">)</span>
+    <span class="n">gaborBankList</span> <span class="o">=</span> <span class="n">gabor_bank</span><span class="p">(</span><span class="n">ridgePeriodList</span><span class="p">)</span>
+    <span class="n">fFPList</span><span class="p">,</span> <span class="n">nfFBList</span> <span class="o">=</span> <span class="n">filter_fingerprint</span><span class="p">(</span><span class="n">fingerprintsList</span><span class="p">,</span> <span class="n">gaborBankList</span><span class="p">)</span>
+    <span class="n">enhancedFPList</span> <span class="o">=</span> <span class="n">enhance_fingerprint</span><span class="p">(</span><span class="n">fingerprintsList</span><span class="p">,</span> <span class="n">fFPList</span><span class="p">,</span> \
+        <span class="n">orientationsList</span><span class="p">,</span> <span class="n">maskList</span><span class="p">)</span>
+    
+    <span class="n">ridgeLinesList</span> <span class="o">=</span> <span class="n">ridge_lines</span><span class="p">(</span><span class="n">enhancedFPList</span><span class="p">)</span>
+    <span class="n">skeletonList</span> <span class="o">=</span> <span class="n">get_skeleton</span><span class="p">(</span><span class="n">ridgeLinesList</span><span class="p">)</span>
+    <span class="n">neighbourValsList</span><span class="p">,</span> <span class="n">allEightNeighbors</span><span class="p">,</span> <span class="n">cnList</span> <span class="o">=</span> <span class="n">get_cn</span><span class="p">(</span><span class="n">skeletonList</span><span class="p">)</span>
+    <span class="n">minutiaeList</span> <span class="o">=</span> <span class="n">get_minutiae</span><span class="p">(</span><span class="n">cnList</span><span class="p">)</span>
+    <span class="n">maskDistList</span> <span class="o">=</span> <span class="n">get_mask_distance</span><span class="p">(</span><span class="n">maskList</span><span class="p">)</span>
+    <span class="n">filtMinutiaeList</span> <span class="o">=</span> <span class="n">get_filt_minutiae</span><span class="p">(</span><span class="n">maskDistList</span><span class="p">,</span> <span class="n">minutiaeList</span><span class="p">)</span>
+    <span class="n">xySteps</span><span class="p">,</span> <span class="n">ndLUT</span> <span class="o">=</span> <span class="n">create_nd_LUT</span><span class="p">(</span><span class="n">allEightNeighbors</span><span class="p">)</span>
+    <span class="n">classMinutiaeDir</span> <span class="o">=</span> <span class="n">MinutiaeDirections</span><span class="p">(</span><span class="n">neighbourValsList</span><span class="p">,</span> <span class="n">ndLUT</span><span class="p">,</span> \
+        <span class="n">cnList</span><span class="p">,</span> <span class="n">xySteps</span><span class="p">,</span> <span class="n">fingerprintsList</span><span class="p">)</span>
+    
+    <span class="n">validMinutiaeList</span> <span class="o">=</span> <span class="n">classMinutiaeDir</span><span class="o">.</span><span class="n">valid_minutiae</span><span class="p">(</span><span class="n">filtMinutiaeList</span><span class="p">)</span>
+    <span class="n">classLocalStructs</span> <span class="o">=</span> <span class="n">LocalStructs</span><span class="p">(</span><span class="n">validMinutiaeList</span><span class="p">)</span>
+    <span class="n">localStructsList</span> <span class="o">=</span> <span class="n">classLocalStructs</span><span class="o">.</span><span class="n">create_local_structs</span><span class="p">()</span>
+    
+    <span class="k">if</span> <span class="n">filepath</span> <span class="ow">is</span> <span class="ow">not</span> <span class="kc">None</span><span class="p">:</span>
+        
+        <span class="n">st</span><span class="o">.</span><span class="n">success</span><span class="p">(</span><span class="s1">'Fingerprint successfully analysed!'</span><span class="p">)</span>
+    
+    <span class="k">else</span><span class="p">:</span>
+        
+        <span class="n">st</span><span class="o">.</span><span class="n">success</span><span class="p">(</span><span class="s1">'Fingerprint database initialised!'</span><span class="p">)</span>
+    
+    <span class="k">return</span> <span class="n">localStructsList</span>
+    
+<span class="k">def</span> <span class="nf">main</span><span class="p">():</span>
+    <span class="k">pass</span>
+    <span class="c1"># print_wd()</span>
+    <span class="c1"># readFingerPrints = read_fingerprints()</span>
+    <span class="c1"># GxList, GyList, Gx2List, Gy2List, GmList = calc_sobel(readFingerPrints)</span>
+    <span class="c1"># Gx = GxList[0]</span>
+    <span class="c1"># _, filename = readFingerPrints[0]</span>
+    <span class="c1"># sumGm = sum_Gm(GmList)</span>
+    <span class="c1"># thres = threshold_mask(sumGm)</span>
+    <span class="c1"># plt.imshow(thres[0], cmap='gray')  # You can specify the colormap to 'gray' for grayscale images</span>
+    <span class="c1"># plt.title(f'Integral Gradient Magnitude of {filename}')</span>
+    <span class="c1"># plt.show()</span>
+    <span class="c1"># orientationsList, strengthsList = ridge_orientation(Gx2List, Gy2List)</span>
+    
+    <span class="c1"># cv.imshow('', orientationsList[0])</span>
+    
+    <span class="c1"># while True:</span>
+
+    <span class="c1">#     if cv.waitKey(1) &amp; 0xFF == ord('q'):</span>
+            
+    <span class="c1">#         cv.destroyAllWindows()</span>
+    <span class="c1">#         break</span>
+        
+<span class="k">if</span> <span class="vm">__name__</span> <span class="o">==</span> <span class="s2">"__main__"</span><span class="p">:</span>
+    <span class="n">main</span><span class="p">()</span>
+</pre></div>
+</div>
+</div>
+</div>
+</div>
+<div class="jp-Cell jp-MarkdownCell jp-Notebook-cell">
+<div class="jp-Cell-inputWrapper" tabindex="0">
+<div class="jp-Collapser jp-InputCollapser jp-Cell-inputCollapser">
+</div>
+<div class="jp-InputArea jp-Cell-inputArea"><div class="jp-InputPrompt jp-InputArea-prompt">
+</div><div class="jp-RenderedHTMLCommon jp-RenderedMarkdown jp-MarkdownOutput" data-mime-type="text/markdown">
+<h3 id="gui_init.py-Code"><code>gui_init.py</code> Code<a class="anchor-link" href="#gui_init.py-Code">¶</a></h3><div class="highlight"><pre><span></span><span class="kn">from</span> <span class="nn">os</span> <span class="kn">import</span> <span class="n">path</span>
+<span class="kn">import</span> <span class="nn">subprocess</span>
+<span class="kn">import</span> <span class="nn">threading</span>
+<span class="kn">import</span> <span class="nn">streamlit</span> <span class="k">as</span> <span class="nn">st</span>
+<span class="kn">import</span> <span class="nn">cv2</span> <span class="k">as</span> <span class="nn">cv</span>
+
+<span class="k">if</span> <span class="ow">not</span> <span class="n">path</span><span class="o">.</span><span class="n">exists</span><span class="p">(</span><span class="s1">'utils.py'</span><span class="p">):</span> <span class="c1"># If running on colab: the first time download and unzip additional files</span>
+    
+    <span class="c1"># Run the wget command to download the file</span>
+    <span class="n">subprocess</span><span class="o">.</span><span class="n">run</span><span class="p">([</span><span class="s1">'wget'</span><span class="p">,</span> <span class="s1">'https://biolab.csr.unibo.it/samples/fr/files.zip'</span><span class="p">])</span>
+
+    <span class="c1"># Run the unzip command to extract the contents</span>
+    <span class="n">subprocess</span><span class="o">.</span><span class="n">run</span><span class="p">([</span><span class="s1">'unzip'</span><span class="p">,</span> <span class="s1">'files.zip'</span><span class="p">])</span>
+
+<span class="kn">import</span> <span class="nn">utils</span>  <span class="c1"># Run utils.py for helper functions</span>
+<span class="kn">import</span> <span class="nn">fingerprint</span> <span class="k">as</span> <span class="nn">fp</span>
+<span class="kn">import</span> <span class="nn">math</span>
+<span class="kn">import</span> <span class="nn">os</span>
+<span class="kn">import</span> <span class="nn">subprocess</span>
+<span class="kn">import</span> <span class="nn">numpy</span> <span class="k">as</span> <span class="nn">np</span>
+<span class="kn">import</span> <span class="nn">cv2</span> <span class="k">as</span> <span class="nn">cv</span>
+<span class="kn">import</span> <span class="nn">matplotlib.pyplot</span> <span class="k">as</span> <span class="nn">plt</span>
+<span class="kn">import</span> <span class="nn">pandas</span> <span class="k">as</span> <span class="nn">pd</span>
+<span class="kn">import</span> <span class="nn">streamlit</span> <span class="k">as</span> <span class="nn">st</span>
+<span class="kn">from</span> <span class="nn">utils</span> <span class="kn">import</span> <span class="o">*</span>
+<span class="kn">from</span> <span class="nn">ipywidgets</span> <span class="kn">import</span> <span class="n">interact</span>
+
+
+<span class="c1">###################</span>
+<span class="c1"># Run the fingerprint analysis methodology on the fingerprint database</span>
+<span class="k">def</span> <span class="nf">fingerprint_db_init</span><span class="p">():</span>
+    
+    <span class="n">fingerprintsList</span> <span class="o">=</span> <span class="n">fp</span><span class="o">.</span><span class="n">read_fingerprints</span><span class="p">()</span>
+    <span class="n">GxList</span><span class="p">,</span> <span class="n">GyList</span><span class="p">,</span> <span class="n">Gx2List</span><span class="p">,</span> <span class="n">Gy2List</span><span class="p">,</span> <span class="n">GmList</span> <span class="o">=</span> <span class="n">fp</span><span class="o">.</span><span class="n">calc_sobel</span><span class="p">(</span><span class="n">fingerprintsList</span><span class="p">)</span>
+    <span class="n">sumGm</span> <span class="o">=</span> <span class="n">fp</span><span class="o">.</span><span class="n">sum_Gm</span><span class="p">(</span><span class="n">GmList</span><span class="p">)</span>
+    <span class="n">maskList</span> <span class="o">=</span> <span class="n">fp</span><span class="o">.</span><span class="n">threshold_mask</span><span class="p">(</span><span class="n">sumGm</span><span class="p">)</span>
+    <span class="n">orientationsList</span><span class="p">,</span> <span class="n">strengthsList</span> <span class="o">=</span> <span class="n">fp</span><span class="o">.</span><span class="n">ridge_orientation</span><span class="p">(</span><span class="n">GxList</span><span class="p">,</span> <span class="n">GyList</span><span class="p">,</span>\
+        <span class="n">Gx2List</span><span class="p">,</span> <span class="n">Gy2List</span><span class="p">)</span>
+    
+    <span class="n">regionList</span><span class="p">,</span> <span class="n">locMaxList</span><span class="p">,</span> <span class="n">xSigList</span> <span class="o">=</span> <span class="n">fp</span><span class="o">.</span><span class="n">ridge_frequency</span><span class="p">(</span><span class="n">fingerprintsList</span><span class="p">)</span>
+    <span class="n">distanceList</span><span class="p">,</span> <span class="n">ridgePeriodList</span> <span class="o">=</span> <span class="n">fp</span><span class="o">.</span><span class="n">ridge_period</span><span class="p">(</span><span class="n">locMaxList</span><span class="p">)</span>
+    <span class="n">gaborBankList</span> <span class="o">=</span> <span class="n">fp</span><span class="o">.</span><span class="n">gabor_bank</span><span class="p">(</span><span class="n">ridgePeriodList</span><span class="p">)</span>
+    <span class="n">fFPList</span><span class="p">,</span> <span class="n">nfFBList</span> <span class="o">=</span> <span class="n">fp</span><span class="o">.</span><span class="n">filter_fingerprint</span><span class="p">(</span><span class="n">fingerprintsList</span><span class="p">,</span> <span class="n">gaborBankList</span><span class="p">)</span>
+    <span class="n">enhancedFPList</span> <span class="o">=</span> <span class="n">fp</span><span class="o">.</span><span class="n">enhance_fingerprint</span><span class="p">(</span><span class="n">fingerprintsList</span><span class="p">,</span> <span class="n">fFPList</span><span class="p">,</span> \
+        <span class="n">orientationsList</span><span class="p">,</span> <span class="n">maskList</span><span class="p">)</span>
+    
+    <span class="n">ridgeLinesList</span> <span class="o">=</span> <span class="n">fp</span><span class="o">.</span><span class="n">ridge_lines</span><span class="p">(</span><span class="n">enhancedFPList</span><span class="p">)</span>
+    <span class="n">skeletonList</span> <span class="o">=</span> <span class="n">fp</span><span class="o">.</span><span class="n">get_skeleton</span><span class="p">(</span><span class="n">ridgeLinesList</span><span class="p">)</span>
+    <span class="n">neighbourValsList</span><span class="p">,</span> <span class="n">allEightNeighbors</span><span class="p">,</span> <span class="n">cnList</span> <span class="o">=</span> <span class="n">fp</span><span class="o">.</span><span class="n">get_cn</span><span class="p">(</span><span class="n">skeletonList</span><span class="p">)</span>
+    <span class="n">minutiaeList</span> <span class="o">=</span> <span class="n">fp</span><span class="o">.</span><span class="n">get_minutiae</span><span class="p">(</span><span class="n">cnList</span><span class="p">)</span>
+    <span class="n">maskDistList</span> <span class="o">=</span> <span class="n">fp</span><span class="o">.</span><span class="n">get_mask_distance</span><span class="p">(</span><span class="n">maskList</span><span class="p">)</span>
+    <span class="n">filtMinutiaeList</span> <span class="o">=</span> <span class="n">fp</span><span class="o">.</span><span class="n">get_filt_minutiae</span><span class="p">(</span><span class="n">maskDistList</span><span class="p">,</span> <span class="n">minutiaeList</span><span class="p">)</span>
+    <span class="n">xySteps</span><span class="p">,</span> <span class="n">ndLUT</span> <span class="o">=</span> <span class="n">fp</span><span class="o">.</span><span class="n">create_nd_LUT</span><span class="p">(</span><span class="n">allEightNeighbors</span><span class="p">)</span>
+    <span class="n">classMinutiaeDir</span> <span class="o">=</span> <span class="n">fp</span><span class="o">.</span><span class="n">MinutiaeDirections</span><span class="p">(</span><span class="n">neighbourValsList</span><span class="p">,</span> <span class="n">ndLUT</span><span class="p">,</span> \
+        <span class="n">cnList</span><span class="p">,</span> <span class="n">xySteps</span><span class="p">)</span>
+    
+   
+    <span class="n">validMinutiaeList</span> <span class="o">=</span> <span class="n">classMinutiaeDir</span><span class="o">.</span><span class="n">valid_minutiae</span><span class="p">(</span><span class="n">filtMinutiaeList</span><span class="p">)</span>
+    
+    <span class="nb">print</span><span class="p">(</span><span class="s2">"FINGERPRINT DATABASE INITIALIZED"</span><span class="p">)</span>
+    
+    <span class="k">return</span> <span class="mi">0</span>
+
+<span class="c1"># Label the fingerprint based on the score</span>
+<span class="k">def</span> <span class="nf">label_fingerprint</span><span class="p">(</span><span class="n">scoresList</span><span class="p">):</span>
+    
+    <span class="n">matchList</span> <span class="o">=</span> <span class="p">[]</span> 
+    <span class="n">notMatchList</span> <span class="o">=</span> <span class="p">[]</span>
+    
+    <span class="k">for</span> <span class="n">score</span> <span class="ow">in</span> <span class="n">scoresList</span><span class="p">:</span>
+        
+        <span class="k">if</span> <span class="n">score</span> <span class="o">&gt;=</span> <span class="mf">0.5</span><span class="p">:</span>
+            
+            <span class="n">matchList</span><span class="o">.</span><span class="n">append</span><span class="p">(</span><span class="n">score</span><span class="p">)</span>
+            
+        <span class="k">else</span><span class="p">:</span>
+            
+            <span class="n">notMatchList</span><span class="o">.</span><span class="n">append</span><span class="p">(</span><span class="n">score</span><span class="p">)</span>
+            
+    <span class="k">if</span> <span class="n">TPList</span> <span class="ow">and</span> <span class="n">FPList</span> <span class="ow">is</span> <span class="ow">not</span> <span class="kc">None</span><span class="p">:</span>
+        
+        <span class="n">TPR</span> <span class="o">=</span> <span class="nb">len</span><span class="p">(</span><span class="n">matchList</span><span class="p">)</span> <span class="o">/</span> <span class="p">(</span><span class="nb">len</span><span class="p">(</span><span class="n">matchList</span><span class="p">)</span> <span class="o">+</span> <span class="nb">len</span><span class="p">(</span><span class="n">notMatchListt</span><span class="p">))</span> 
+        
+    <span class="k">return</span> <span class="n">TPR</span>
+
+    
+    
+<span class="c1"># Compare the uploaded fingerprint against the database</span>
+<span class="k">def</span> <span class="nf">compare_fingerprints</span><span class="p">(</span><span class="n">localStructsList</span><span class="p">,</span> <span class="n">targetStructs</span><span class="p">):</span> <span class="c1">#databaseTuple, targetTuple</span>
+    
+    <span class="c1">#localStructsList = databaseTuple</span>
+    <span class="c1">#ls1 = targetTuple</span>
+    <span class="n">ls1</span><span class="p">,</span> <span class="n">targetName</span> <span class="o">=</span> <span class="n">targetStructs</span><span class="p">[</span><span class="mi">0</span><span class="p">]</span>
+    <span class="n">scoresList</span> <span class="o">=</span> <span class="p">[]</span>
+    
+    <span class="k">for</span> <span class="n">localStructs</span><span class="p">,</span> <span class="n">filename</span> <span class="ow">in</span> <span class="n">localStructsList</span><span class="p">:</span>
+        
+        <span class="n">dists</span> <span class="o">=</span> <span class="n">np</span><span class="o">.</span><span class="n">linalg</span><span class="o">.</span><span class="n">norm</span><span class="p">(</span><span class="n">localStructs</span><span class="p">[:,</span> <span class="n">np</span><span class="o">.</span><span class="n">newaxis</span><span class="p">,</span> <span class="p">:]</span> <span class="o">-</span> <span class="n">ls1</span><span class="p">,</span> <span class="n">axis</span> <span class="o">=</span> <span class="o">-</span><span class="mi">1</span><span class="p">)</span>
+        
+        <span class="c1"># Normalize as in eq. (17) of MCC paper</span>
+        <span class="n">dists</span> <span class="o">/=</span> <span class="n">np</span><span class="o">.</span><span class="n">linalg</span><span class="o">.</span><span class="n">norm</span><span class="p">(</span><span class="n">localStructs</span><span class="p">,</span> <span class="n">axis</span> <span class="o">=</span> <span class="mi">1</span><span class="p">)[:,</span><span class="n">np</span><span class="o">.</span><span class="n">newaxis</span><span class="p">]</span> <span class="o">+</span> \
+            <span class="n">np</span><span class="o">.</span><span class="n">linalg</span><span class="o">.</span><span class="n">norm</span><span class="p">(</span><span class="n">ls1</span><span class="p">,</span> <span class="n">axis</span> <span class="o">=</span> <span class="mi">1</span><span class="p">)</span>
+            
+        <span class="n">numPairs</span> <span class="o">=</span> <span class="mi">5</span> <span class="c1"># For simplicity: a fixed number of pairs</span>
+        <span class="n">pairs</span> <span class="o">=</span> <span class="n">np</span><span class="o">.</span><span class="n">unravel_index</span><span class="p">(</span><span class="n">np</span><span class="o">.</span><span class="n">argpartition</span><span class="p">(</span><span class="n">dists</span><span class="p">,</span> <span class="n">numPairs</span><span class="p">,</span> <span class="kc">None</span><span class="p">)[:</span><span class="n">numPairs</span><span class="p">],</span> \
+            <span class="n">dists</span><span class="o">.</span><span class="n">shape</span><span class="p">)</span>
+        
+        <span class="n">score</span> <span class="o">=</span> <span class="mi">1</span> <span class="o">-</span> <span class="n">np</span><span class="o">.</span><span class="n">mean</span><span class="p">(</span><span class="n">dists</span><span class="p">[</span><span class="n">pairs</span><span class="p">[</span><span class="mi">0</span><span class="p">],</span> <span class="n">pairs</span><span class="p">[</span><span class="mi">1</span><span class="p">]])</span>
+        <span class="n">scoresList</span><span class="o">.</span><span class="n">append</span><span class="p">((</span><span class="n">filename</span><span class="p">,</span> <span class="n">score</span><span class="p">))</span>
+    
+    <span class="c1"># Convert scores to pandas Dataframe for streamlit</span>
+    <span class="n">scoreDataFrame</span> <span class="o">=</span> <span class="n">pd</span><span class="o">.</span><span class="n">DataFrame</span><span class="p">(</span><span class="n">scoresList</span><span class="p">,</span> <span class="n">columns</span> <span class="o">=</span> <span class="p">[</span><span class="s1">'Fingerprint'</span><span class="p">,</span> <span class="s1">'Score'</span><span class="p">])</span>
+    
+    <span class="c1"># Sort the table by Fingerprint name order</span>
+    <span class="n">scoreDataFrame</span><span class="o">.</span><span class="n">sort_values</span><span class="p">(</span><span class="s1">'Fingerprint'</span><span class="p">,</span> <span class="n">inplace</span> <span class="o">=</span> <span class="kc">True</span><span class="p">)</span>
+        
+    <span class="k">return</span> <span class="n">scoreDataFrame</span>
+
+<span class="k">def</span> <span class="nf">main</span><span class="p">():</span>
+    
+    <span class="n">st</span><span class="o">.</span><span class="n">title</span><span class="p">(</span><span class="s1">'Fingerprint Analysis Tool'</span><span class="p">)</span>
+    
+    <span class="c1"># File path for target fingerprints to be analysed by the user</span>
+    <span class="n">directoryPath</span> <span class="o">=</span> <span class="s1">'./target_fingerprint'</span>
+    
+    <span class="c1"># Initialise fingerprint database</span>
+    <span class="n">localStructsList</span> <span class="o">=</span> <span class="n">fp</span><span class="o">.</span><span class="n">analyse_fingerprints</span><span class="p">(</span><span class="kc">None</span><span class="p">)</span>
+    <span class="c1"># fingerprintsList, validMinutiaeList, localStructsList = \</span>
+    <span class="c1">#     fp.analyse_fingerprints(None)</span>
+    
+    <span class="c1">#databaseTuple = (fingerprintsList, validMinutiaeList, localStructsList)</span>
+    <span class="c1"># col1, col2, col3 = st.columns(3)</span>
+    
+    <span class="c1"># with col1:</span>
+        
+    <span class="c1">#     st.image(fingerprintsList[0][0], caption = 'Fingerprint', use_column_width = True)</span>
+    
+    <span class="c1"># with col2:</span>
+        
+    <span class="c1">#     drawMinutiae = draw_minutiae(fingerprintsList[0][0], validMinutiaeList[0])</span>
+    <span class="c1">#     st.image(drawMinutiae, caption = 'Fingerprint', use_column_width = True)</span>
+        
+    <span class="c1"># with col3:</span>
+    <span class="c1">#     pass</span>
+    <span class="c1">#     #st.image(localStructsList[0], caption = 'Fingerprint', use_column_width = True)</span>
+   
+
+
+    <span class="n">uploadedFile</span> <span class="o">=</span> <span class="n">st</span><span class="o">.</span><span class="n">file_uploader</span><span class="p">(</span><span class="s2">"Upload fingerprint image..."</span><span class="p">,</span> \
+        <span class="nb">type</span> <span class="o">=</span> <span class="p">[</span><span class="s2">"png"</span><span class="p">,</span> <span class="s2">"jpg"</span><span class="p">,</span> <span class="s2">"jpeg"</span><span class="p">,</span> <span class="s2">"tif"</span><span class="p">])</span>
+
+    <span class="k">if</span> <span class="n">uploadedFile</span> <span class="ow">is</span> <span class="ow">not</span> <span class="kc">None</span><span class="p">:</span>
+        
+        <span class="n">filePath</span> <span class="o">=</span> <span class="n">os</span><span class="o">.</span><span class="n">path</span><span class="o">.</span><span class="n">join</span><span class="p">(</span><span class="n">directoryPath</span><span class="p">,</span> <span class="n">uploadedFile</span><span class="o">.</span><span class="n">name</span><span class="p">)</span>
+        
+        <span class="k">with</span> <span class="nb">open</span><span class="p">(</span><span class="n">filePath</span><span class="p">,</span> <span class="s2">"wb"</span><span class="p">)</span> <span class="k">as</span> <span class="n">f</span><span class="p">:</span>
+            
+            <span class="n">f</span><span class="o">.</span><span class="n">write</span><span class="p">(</span><span class="n">uploadedFile</span><span class="o">.</span><span class="n">getbuffer</span><span class="p">())</span>
+        
+        <span class="n">st</span><span class="o">.</span><span class="n">success</span><span class="p">(</span><span class="s1">'File Successfuly Uploaded'</span><span class="p">)</span>
+        <span class="n">ls1</span> <span class="o">=</span> <span class="n">fp</span><span class="o">.</span><span class="n">analyse_fingerprints</span><span class="p">(</span><span class="n">directoryPath</span><span class="p">)</span>
+        <span class="c1">#targetTuple = (f1, m1, ls1)</span>
+        <span class="c1">#score = compare_fingerprints(databaseTuple, targetTuple)</span>
+        <span class="n">score</span> <span class="o">=</span> <span class="n">compare_fingerprints</span><span class="p">(</span><span class="n">localStructsList</span><span class="p">,</span> <span class="n">ls1</span><span class="p">)</span>
+        <span class="n">st</span><span class="o">.</span><span class="n">write</span><span class="p">(</span><span class="s2">"Comparison Scores: "</span><span class="p">)</span>
+        <span class="n">st</span><span class="o">.</span><span class="n">dataframe</span><span class="p">(</span><span class="n">score</span><span class="p">,</span> <span class="n">hide_index</span> <span class="o">=</span> <span class="kc">True</span><span class="p">)</span>
+        <span class="c1">#st.image(f)</span>
+        <span class="c1"># move the uploaded file to the fingerprint database directory</span>
+        <span class="n">newFilePath</span> <span class="o">=</span> <span class="n">os</span><span class="o">.</span><span class="n">path</span><span class="o">.</span><span class="n">join</span><span class="p">(</span><span class="s1">'./DB1_B - Copy'</span><span class="p">,</span> <span class="n">uploadedFile</span><span class="o">.</span><span class="n">name</span><span class="p">)</span>
+        <span class="n">os</span><span class="o">.</span><span class="n">rename</span><span class="p">(</span><span class="n">filePath</span><span class="p">,</span> <span class="n">newFilePath</span><span class="p">)</span>
+        <span class="c1">#st.success('File Moved to DB1_B directory')</span>
+        <span class="n">encodeFile</span> <span class="o">=</span> <span class="n">np</span><span class="o">.</span><span class="n">asarray</span><span class="p">(</span><span class="nb">bytearray</span><span class="p">(</span><span class="n">uploadedFile</span><span class="o">.</span><span class="n">read</span><span class="p">()),</span> <span class="n">dtype</span><span class="o">=</span><span class="n">np</span><span class="o">.</span><span class="n">uint8</span><span class="p">)</span>
+        <span class="n">decodeFile</span> <span class="o">=</span> <span class="n">cv</span><span class="o">.</span><span class="n">imdecode</span><span class="p">(</span><span class="n">encodeFile</span><span class="p">,</span> <span class="n">cv</span><span class="o">.</span><span class="n">IMREAD_GRAYSCALE</span><span class="p">)</span>
+        <span class="c1">#st.image(decodeFile, channels="BGR", caption='Uploaded Fingerprint', use_column_width=True)</span>
+        <span class="c1">#print(decodeFile.min(). decodeFile.max())</span>
+        <span class="c1">#analyse_target_fingerprint(decodeFile)</span>
+        
+        
+        
+<span class="k">if</span> <span class="vm">__name__</span> <span class="o">==</span> <span class="s2">"__main__"</span><span class="p">:</span>
+    <span class="n">main</span><span class="p">()</span>
+</pre></div>
+</div>
+</div>
+</div>
+</div>
+<div class="jp-Cell jp-MarkdownCell jp-Notebook-cell">
+<div class="jp-Cell-inputWrapper" tabindex="0">
+<div class="jp-Collapser jp-InputCollapser jp-Cell-inputCollapser">
+</div>
+<div class="jp-InputArea jp-Cell-inputArea"><div class="jp-InputPrompt jp-InputArea-prompt">
+</div><div class="jp-RenderedHTMLCommon jp-RenderedMarkdown jp-MarkdownOutput" data-mime-type="text/markdown">
 <style>
 .page-break { page-break-after: always; }
 </style>
@@ -7578,14 +8535,6 @@ a.anchor-link {
 <div class="jp-OutputPrompt jp-OutputArea-prompt"></div>
 <div class="jp-RenderedText jp-OutputArea-output" data-mime-type="text/plain" tabindex="0">
 <pre>/workspaces/fingerprint
-</pre>
-</div>
-</div>
-<div class="jp-OutputArea-child">
-<div class="jp-OutputPrompt jp-OutputArea-prompt"></div>
-<div class="jp-RenderedText jp-OutputArea-output" data-mime-type="application/vnd.jupyter.stderr" tabindex="0">
-<pre>/home/vscode/.local/lib/python3.10/site-packages/IPython/core/magics/osm.py:417: UserWarning: using dhist requires you to install the `pickleshare` library.
-  self.shell.db['dhist'] = compress_dhist(dhist)[-100:]
 </pre>
 </div>
 </div>
@@ -8220,37 +9169,6 @@ average ridge period of 102_5.tif = 7.875
 <div class="jp-OutputPrompt jp-OutputArea-prompt"></div>
 <div class="jp-RenderedText jp-OutputArea-output" data-mime-type="text/plain" tabindex="0">
 <pre>interactive(children=(IntSlider(value=0, description='i', max=57), Output()), _dom_classes=('widget-interact',…</pre>
-</div>
-</div>
-</div>
-</div>
-</div><div class="jp-Cell jp-CodeCell jp-Notebook-cell">
-<div class="jp-Cell-inputWrapper" tabindex="0">
-<div class="jp-Collapser jp-InputCollapser jp-Cell-inputCollapser">
-</div>
-<div class="jp-InputArea jp-Cell-inputArea">
-<div class="jp-InputPrompt jp-InputArea-prompt">In [ ]:</div>
-<div class="jp-CodeMirrorEditor jp-Editor jp-InputArea-editor" data-type="inline">
-<div class="cm-editor cm-s-jupyter">
-<div class="highlight hl-ipython3"><pre><span></span><span class="nb">print</span><span class="p">(</span><span class="nb">len</span><span class="p">(</span><span class="n">fingerprintsList</span><span class="p">))</span>
-<span class="nb">print</span><span class="p">(</span><span class="nb">len</span><span class="p">(</span><span class="n">validMinutiaeList</span><span class="p">))</span>
-<span class="nb">print</span><span class="p">(</span><span class="nb">len</span><span class="p">(</span><span class="n">localStructsList</span><span class="p">))</span>
-</pre></div>
-</div>
-</div>
-</div>
-</div>
-<div class="jp-Cell-outputWrapper">
-<div class="jp-Collapser jp-OutputCollapser jp-Cell-outputCollapser">
-</div>
-<div class="jp-OutputArea jp-Cell-outputArea">
-<div class="jp-OutputArea-child">
-<div class="jp-OutputPrompt jp-OutputArea-prompt"></div>
-<div class="jp-RenderedText jp-OutputArea-output" data-mime-type="text/plain" tabindex="0">
-<pre>16
-16
-16
-</pre>
 </div>
 </div>
 </div>
