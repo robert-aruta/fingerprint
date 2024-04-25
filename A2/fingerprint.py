@@ -38,7 +38,9 @@ def read_fingerprints(filePath):
     
     else:
         
-        directoryPath = './target_fingerprint'
+        #directoryPath = './A2/DB1_B'
+        #directoryPath = './target_fingerprint'
+        directoryPath = './DB1_B - Copy/'
         
     fingerprintList = []
     resizedImages = []
@@ -55,11 +57,6 @@ def read_fingerprints(filePath):
         else:
             
             print("Failed to Read image of %s\n" % filename)
-
-    # with open('output.csv', 'w', newline='') as file:
-    #     writer = csv.writer(file)
-    #     # Write all rows at once
-    #     writer.writerows(fingerprintList)
     
     return fingerprintList
 
@@ -299,10 +296,11 @@ def enhance_fingerprint(fingerprintsList, filteredFPList, orientationsList, mask
         filteredFP = fFp[orientationIdx, y, x]
         filteredList.append(filteredFP)
     
-    for mask, filteredFP in zip(maskList, filteredList):
+    for mask, filteredFP, (fingerprint, filename) in zip(maskList, filteredList\
+        , fingerprintsList):
         
         enhancedFP = mask & np.clip(filteredFP, 0, 255).astype(np.uint8)
-        enhancedFPList.append(enhancedFP)
+        enhancedFPList.append((enhancedFP, filename))
     # for fFp, orientations, mask in zip(filteredFPList, orientationsList, maskList):
         
     #     orientationIdx = np.round(((orientations % np.pi) / np.pi) * orCount).astype(np.int32) % orCount
@@ -316,7 +314,7 @@ def ridge_lines(enhancedFPList):
     
     ridgeLinesList = []
     
-    for enhancedFP in enhancedFPList:
+    for enhancedFP, filename in enhancedFPList:
     
         _, ridgeLines = cv.threshold(enhancedFP, 32, 255, cv.THRESH_BINARY)
         ridgeLinesList.append(ridgeLines)
@@ -448,12 +446,13 @@ def create_nd_LUT(allEightNeighbors):
 
 class MinutiaeDirections:
     
-    def __init__(self, neighbourValsList, ndLUT, cnList, xySteps):
+    def __init__(self, neighbourValsList, ndLUT, cnList, xySteps, fpList):
         
         self.neighbourValsList = neighbourValsList
         self.ndLUT = ndLUT
         self.cnList = cnList
         self.xySteps = xySteps
+        self.fpList = fpList
         
     def follow_ridge_and_compute_angle(self, valTuple, x, y, d = 8):
         
@@ -513,16 +512,16 @@ class MinutiaeDirections:
         neighbourValsList = self.neighbourValsList
         cnList = self.cnList
         xySteps = self.xySteps
-
+        fpList = self.fpList
         
         validMinutiaeList = []
         
-        for filteredMinutiae, neighbourVals, cn \
-            in zip(filtMinutiaeList, neighbourValsList, cnList):
+        for filteredMinutiae, neighbourVals, cn, (fingerprints, filename) \
+            in zip(filtMinutiaeList, neighbourValsList, cnList, fpList):
                 
             validMinutiae = []
             
-            for x, y, term in filteredMinutiae:
+            for (x, y, term) in filteredMinutiae:
                 
 
                 d = None
@@ -558,9 +557,10 @@ class MinutiaeDirections:
                             d = angle_mean(a1, a2)  
                                         
                 if d is not None:
-                    validMinutiae.append( (x, y, term, d) )
+                    
+                    validMinutiae.append((x, y, term, d))
 
-                validMinutiaeList.append(validMinutiae)
+            validMinutiaeList.append((validMinutiae, filename))
                 
         # with open('Valid Minutiae.csv', 'w', newline='') as file:
         #     writer = csv.writer(file)
@@ -585,6 +585,7 @@ class LocalStructs:
         self.mccSigmaS = 7.0
         self.mccTauPsi = 400.0
         self.mccMuPsi = 1e-2
+        
         self.validMinutiaeList = validMinutiaeList
         
     def Gs(self, tSqr):
@@ -608,7 +609,7 @@ class LocalStructs:
         
         xydList = []
         
-        for validMinutiae in self.validMinutiaeList:
+        for validMinutiae, _ in self.validMinutiaeList:
             
             xyd = np.array([(x, y, d) for x, y, _, d in validMinutiae])
             xydList.append(xyd)
@@ -633,17 +634,17 @@ class LocalStructs:
         
         xyList = []
         
-        for xyd in xydList:
+        for xyd, (_, filename) in zip(xydList, self.validMinutiaeList):
             
             xy = xyd[:, :2]
-            xyList.append(xy)
+            xyList.append((xy, filename))
             
         #xyArray = np.concatenate(xyList, axis = 0)
         
         localStructsList = []
         distsList = []
         
-        for xy, rot in zip(xyList, rotList):
+        for (xy, filename), rot in zip(xyList, rotList):
             
             cellCoords = np.transpose(rot@self.refCellCoords.T + \
                 xy[:, :, np.newaxis], [0, 2, 1])
@@ -653,7 +654,7 @@ class LocalStructs:
             diagIndices = np.arange(cs.shape[0])
             cs[diagIndices, :, diagIndices] = 0
             localStructs = self.Psi(np.sum(cs, -1))
-            localStructsList.append(localStructs)
+            localStructsList.append((localStructs, filename))
             
         return localStructsList
     
@@ -699,15 +700,21 @@ def analyse_fingerprints(filepath):
     filtMinutiaeList = get_filt_minutiae(maskDistList, minutiaeList)
     xySteps, ndLUT = create_nd_LUT(allEightNeighbors)
     classMinutiaeDir = MinutiaeDirections(neighbourValsList, ndLUT, \
-        cnList, xySteps)
+        cnList, xySteps, fingerprintsList)
     
     validMinutiaeList = classMinutiaeDir.valid_minutiae(filtMinutiaeList)
     classLocalStructs = LocalStructs(validMinutiaeList)
     localStructsList = classLocalStructs.create_local_structs()
-    st.success('Fingerprint database initialised!')
     
+    if filepath is not None:
+        
+        st.success('Fingerprint successfully analysed!')
     
-    return fingerprintsList, validMinutiaeList, localStructsList
+    else:
+        
+        st.success('Fingerprint database initialised!')
+    
+    return localStructsList
     
 def main():
     pass

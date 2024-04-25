@@ -20,6 +20,7 @@ import subprocess
 import numpy as np
 import cv2 as cv
 import matplotlib.pyplot as plt
+import pandas as pd
 import streamlit as st
 from utils import *
 from ipywidgets import interact
@@ -85,33 +86,63 @@ def label_fingerprint(scoresList):
     
     
 # Compare the uploaded fingerprint against the database
-def compare_fingerprints(whatevertheoutputofaanalyse_target_fingerprintis):
-    pass
+def compare_fingerprints(localStructsList, targetStructs): #databaseTuple, targetTuple
+    
+    #localStructsList = databaseTuple
+    #ls1 = targetTuple
+    ls1, targetName = targetStructs[0]
+    scoresList = []
+    
+    for localStructs, filename in localStructsList:
+        
+        dists = np.linalg.norm(localStructs[:, np.newaxis, :] - ls1, axis = -1)
+        
+        # Normalize as in eq. (17) of MCC paper
+        dists /= np.linalg.norm(localStructs, axis = 1)[:,np.newaxis] + \
+            np.linalg.norm(ls1, axis = 1)
+            
+        numPairs = 5 # For simplicity: a fixed number of pairs
+        pairs = np.unravel_index(np.argpartition(dists, numPairs, None)[:numPairs], \
+            dists.shape)
+        
+        score = 1 - np.mean(dists[pairs[0], pairs[1]])
+        scoresList.append((filename, score))
+    
+    # Convert scores to pandas Dataframe for streamlit
+    scoreDataFrame = pd.DataFrame(scoresList, columns = ['Fingerprint', 'Score'])
+    
+    # Sort the table by Fingerprint name order
+    scoreDataFrame.sort_values('Fingerprint', inplace = True)
+        
+    return scoreDataFrame
 
 def main():
     
     st.title('Fingerprint Analysis Tool')
+    
     # File path for target fingerprints to be analysed by the user
     directoryPath = './target_fingerprint'
     
     # Initialise fingerprint database
-    fingerprintsList, validMinutiaeList, localStructsList = \
-        fp.analyse_fingerprints(None)
+    localStructsList = fp.analyse_fingerprints(None)
+    # fingerprintsList, validMinutiaeList, localStructsList = \
+    #     fp.analyse_fingerprints(None)
     
-    col1, col2, col3 = st.columns(3)
+    #databaseTuple = (fingerprintsList, validMinutiaeList, localStructsList)
+    # col1, col2, col3 = st.columns(3)
     
-    with col1:
+    # with col1:
         
-        st.image(fingerprintsList[0][0], caption = 'Fingerprint', use_column_width = True)
+    #     st.image(fingerprintsList[0][0], caption = 'Fingerprint', use_column_width = True)
     
-    with col2:
+    # with col2:
         
-        drawMinutiae = draw_minutiae(fingerprintsList[0][0], validMinutiaeList[0])
-        st.image(drawMinutiae, caption = 'Fingerprint', use_column_width = True)
+    #     drawMinutiae = draw_minutiae(fingerprintsList[0][0], validMinutiaeList[0])
+    #     st.image(drawMinutiae, caption = 'Fingerprint', use_column_width = True)
         
-    with col3:
-        pass
-        #st.image(localStructsList[0], caption = 'Fingerprint', use_column_width = True)
+    # with col3:
+    #     pass
+    #     #st.image(localStructsList[0], caption = 'Fingerprint', use_column_width = True)
    
 
 
@@ -127,10 +158,15 @@ def main():
             f.write(uploadedFile.getbuffer())
         
         st.success('File Successfuly Uploaded')
-        f1, m1, ls1 = fp.analyse_fingerprints(filePath)
+        ls1 = fp.analyse_fingerprints(directoryPath)
+        #targetTuple = (f1, m1, ls1)
+        #score = compare_fingerprints(databaseTuple, targetTuple)
+        score = compare_fingerprints(localStructsList, ls1)
+        st.write("Comparison Scores: ")
+        st.dataframe(score, hide_index = True)
         #st.image(f)
         # move the uploaded file to the fingerprint database directory
-        newFilePath = os.path.join('./DB1_B', uploadedFile.name)
+        newFilePath = os.path.join('./DB1_B - Copy', uploadedFile.name)
         os.rename(filePath, newFilePath)
         #st.success('File Moved to DB1_B directory')
         encodeFile = np.asarray(bytearray(uploadedFile.read()), dtype=np.uint8)
