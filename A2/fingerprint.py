@@ -1,6 +1,5 @@
 from os import path
 import subprocess
-import threading
 
 if not path.exists('utils.py'): # If running on colab: the first time download and unzip additional files
     
@@ -39,8 +38,8 @@ def read_fingerprints(filePath):
     else:
         
         #directoryPath = './A2/DB1_B'
-        #directoryPath = './target_fingerprint'
-        directoryPath = './DB1_B - Copy/'
+        directoryPath = './DB1_B'
+        #directoryPath = './DB1_B - Copy/'
         
     fingerprintList = []
     resizedImages = []
@@ -115,6 +114,7 @@ def threshold_mask(sumList):
     
     for i in sumList:
         
+        #threshold = i.max() * 0.2
         threshold = i.max() * 0.2
         mask = cv.threshold(i, threshold, 255, cv.THRESH_BINARY)[1].astype(np.uint8)
         maskList.append(mask)

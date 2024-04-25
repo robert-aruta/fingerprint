@@ -61,29 +61,6 @@ def fingerprint_db_init():
     
     return 0
 
-# Label the fingerprint based on the score
-def label_fingerprint(scoresList):
-    
-    matchList = [] 
-    notMatchList = []
-    
-    for score in scoresList:
-        
-        if score >= 0.5:
-            
-            matchList.append(score)
-            
-        else:
-            
-            notMatchList.append(score)
-            
-    if TPList and FPList is not None:
-        
-        TPR = len(matchList) / (len(matchList) + len(notMatchListt)) 
-        
-    return TPR
-
-    
     
 # Compare the uploaded fingerprint against the database
 def compare_fingerprints(localStructsList, targetStructs): #databaseTuple, targetTuple
@@ -113,9 +90,92 @@ def compare_fingerprints(localStructsList, targetStructs): #databaseTuple, targe
     
     # Sort the table by Fingerprint name order
     scoreDataFrame.sort_values('Fingerprint', inplace = True)
-        
+    
     return scoreDataFrame
 
+def create_ROC_curve(classifierDataFrame):
+    
+    filenameList = classifierDataFrame['Fingerprint']
+    scoreList = classifierDataFrame['Score']
+    classifierList = classifierDataFrame['Classifier']
+    
+    thresholdList = np.linspace(0, 1, 1001)
+    TPList = []
+    FPList = []
+    TNList = []
+    FNList = []
+    TPRList = []
+    FPRList = []
+    
+    for threshold in thresholdList:
+        
+        TP = FP = TN = FN = 0
+        
+        for file, classifier, score in zip(filenameList, classifierList, \
+            scoreList):
+        
+            if score > threshold and classifier == 'True':
+                
+                TP += 1
+            
+            elif score > threshold and classifier == 'False':
+                
+                FP += 1
+            
+            elif score < threshold and classifier == 'True':
+                 
+                FN += 1
+            
+            elif score < threshold and classifier == 'False':
+                
+                TN += 1
+        
+        TPR = TP / (TP + FN) if TP + FN > 0 else 0
+        TPRList.append(TPR)
+        
+        FPR = FP / (FP + TN) if FP + TN > 0 else 0
+        FPRList.append(FPR)
+        
+        if TPR > 0.85 and TPR < 0.9:
+            if FPR > 0.04 and FPR < 0.08:
+                print(threshold)
+                
+    chartDataFrame = pd.DataFrame({
+        "True Positive Rate": TPRList,
+        "False Positive Rate": FPRList
+    })
+    
+    return chartDataFrame
+
+def create_classifier(scoreDataFrame):
+    
+    filenameList = scoreDataFrame['Fingerprint']
+    scoreList = scoreDataFrame['Score']
+    
+    truePositiveList = []
+    trueNegativeList = []
+    classifierList = []
+    
+    for filename, score in zip(filenameList, scoreList):
+        
+        prefix, suffix = filename.split('_')
+        
+        if prefix == '101':
+            
+            classifierList.append((filename, 'True', score))
+
+        else:
+            
+            #trueNegativeList.append(filename)
+            classifierList.append((filename, 'False', score))
+        
+        classifierDataFrame = pd.DataFrame(classifierList, columns = \
+            ['Fingerprint', 'Classifier', 'Score'])
+        
+        classifierDataFrame.sort_values('Fingerprint', inplace = True)
+    
+    return classifierDataFrame
+            
 def main():
     
     st.title('Fingerprint Analysis Tool')
@@ -164,6 +224,13 @@ def main():
         score = compare_fingerprints(localStructsList, ls1)
         st.write("Comparison Scores: ")
         st.dataframe(score, hide_index = True)
+        
+        classifier = create_classifier(score)
+        st.write("Classifiers Table")
+        st.dataframe(classifier, hide_index = True)
+        
+        ROCcurve = create_ROC_curve(classifier)
+        st.line_chart(ROCcurve, x = "False Positive Rate", y = "True Positive Rate")
         #st.image(f)
         # move the uploaded file to the fingerprint database directory
         newFilePath = os.path.join('./DB1_B - Copy', uploadedFile.name)
