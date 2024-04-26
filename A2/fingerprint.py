@@ -185,16 +185,6 @@ def ridge_frequency(fingerprints):
     
     for fingerprint, filename in fingerprints:
         
-        #region = fingerprint[100:20, 50:150]
-        # w, h = fingerprint.shape
-
-        # startX = (w - cropWidth) // 2
-        # startY = (h - cropHeight) // 2
-        # endX = startX - cropWidth
-        # endY = startY - cropHeight
-        
-        # region = fingerprint[startX:endX, 50:endY]
-        # regionList.append(region)
         w, h = fingerprint.shape
         cropWidth = int(0.3 * w)
         cropHeight = int(0.3 * h)
@@ -208,9 +198,6 @@ def ridge_frequency(fingerprints):
         
         region = fingerprint[startRow:endRow, startColumn:endColumn]
         regionList.append(region)
-        # endX = startX + 80
-        # endY = (h - cropHeight) // 2
-        # endY = startY - cropHeight
         
         blurRegion = cv.blur(region, (5,5), -1)
         blurRegionList.append(blurRegion)
@@ -301,12 +288,6 @@ def enhance_fingerprint(fingerprintsList, filteredFPList, orientationsList, mask
         
         enhancedFP = mask & np.clip(filteredFP, 0, 255).astype(np.uint8)
         enhancedFPList.append((enhancedFP, filename))
-    # for fFp, orientations, mask in zip(filteredFPList, orientationsList, maskList):
-        
-    #     orientationIdx = np.round(((orientations % np.pi) / np.pi) * orCount).astype(np.int32) % orCount
-    #     filterIdx = fFp[orientationIdx, y, x]
-    #     enhancedFP = mask & np.clip(filterIdx, 0, 255).astype(np.unit8)
-    #     enhancedFPList.append(enhancedFP)
         
     return enhancedFPList
 
@@ -469,45 +450,30 @@ class MinutiaeDirections:
             
                 
         while length < 20: # max length followed
-            # print("length = %d" % length)
-            # print("ndLUT: %s" % ndLUT)
-            # print("py = %d" % py)
-            # print("px = %d" % px)
-            # print("d = %d" % d)
-            #print("At start of loop - length: {}, px: {}, py: {}, d: {}"\
-            #     .format(length, px, py, d))
+
             nextDirections = ndLUT[neighbourVals[py,px]][d]
-            #print("nextDirections: {}".format(nextDirections))
             
             if len(nextDirections) == 0:
                 
-                #print("line 460")
                 break
             
             # Need to check ALL possible next directions
             if (any(cn[py + xySteps[nd][1], px + xySteps[nd][0]] != 2 for nd 
                     in nextDirections)):
-                #print("line 466")
+
                 break # another minutia found: we stop here
             
             # Only the first direction has to be followed
 
             d = nextDirections[0]
             ox, oy, l = xySteps[d]
-            #print("Before update - ox: {}, oy: {}, l: {}, px: {}, py: {}"\
-            #     .format(ox, oy, l, px, py))
+
             px += ox ; py += oy ; length += l
-
-            #print("After update - px: {}, py: {}, length: {}".\
-                # format(px, py, length))
-
-            # check if the minimum length for a valid direction has been reached
 
         return math.atan2(-py+y, px-x) if length >= 10 else None
 
     def valid_minutiae(self, filtMinutiaeList):
         
-        #print("line 486")
         ndLUT = self.ndLUT
         neighbourValsList = self.neighbourValsList
         cnList = self.cnList
@@ -528,7 +494,6 @@ class MinutiaeDirections:
         
                 if term: # termination: simply follow and compute the direction
                     
-                    #print("line 503")
                     d = self.follow_ridge_and_compute_angle((neighbourVals, cn)
                                                        , x, y)
 
@@ -541,7 +506,6 @@ class MinutiaeDirections:
                         
                     if len(dirs)==3: # only if there are exactly three branches
                         
-                        #print("line 516")
                         angles = [self.follow_ridge_and_compute_angle \
                                 ((neighbourVals, cn), x + xySteps[d][0], \
                                     y + xySteps[d][1], d) for d in dirs]
@@ -561,11 +525,6 @@ class MinutiaeDirections:
                     validMinutiae.append((x, y, term, d))
 
             validMinutiaeList.append((validMinutiae, filename))
-                
-        # with open('Valid Minutiae.csv', 'w', newline='') as file:
-        #     writer = csv.writer(file)
-        #     # Write all rows at once
-        #     writer.writerows(validMinutiaeList)
             
         return validMinutiaeList
     
@@ -639,7 +598,6 @@ class LocalStructs:
             xy = xyd[:, :2]
             xyList.append((xy, filename))
             
-        #xyArray = np.concatenate(xyList, axis = 0)
         
         localStructsList = []
         distsList = []
@@ -718,26 +676,6 @@ def analyse_fingerprints(filepath):
     
 def main():
     pass
-    # print_wd()
-    # readFingerPrints = read_fingerprints()
-    # GxList, GyList, Gx2List, Gy2List, GmList = calc_sobel(readFingerPrints)
-    # Gx = GxList[0]
-    # _, filename = readFingerPrints[0]
-    # sumGm = sum_Gm(GmList)
-    # thres = threshold_mask(sumGm)
-    # plt.imshow(thres[0], cmap='gray')  # You can specify the colormap to 'gray' for grayscale images
-    # plt.title(f'Integral Gradient Magnitude of {filename}')
-    # plt.show()
-    # orientationsList, strengthsList = ridge_orientation(Gx2List, Gy2List)
-    
-    # cv.imshow('', orientationsList[0])
-    
-    # while True:
-
-    #     if cv.waitKey(1) & 0xFF == ord('q'):
-            
-    #         cv.destroyAllWindows()
-    #         break
         
 if __name__ == "__main__":
     main()

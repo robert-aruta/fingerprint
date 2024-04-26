@@ -65,8 +65,6 @@ def fingerprint_db_init():
 # Compare the uploaded fingerprint against the database
 def compare_fingerprints(localStructsList, targetStructs): #databaseTuple, targetTuple
     
-    #localStructsList = databaseTuple
-    #ls1 = targetTuple
     ls1, targetName = targetStructs[0]
     scoresList = []
     
@@ -166,7 +164,6 @@ def create_classifier(scoreDataFrame):
 
         else:
             
-            #trueNegativeList.append(filename)
             classifierList.append((filename, 'False', score))
         
         classifierDataFrame = pd.DataFrame(classifierList, columns = \
@@ -185,27 +182,8 @@ def main():
     
     # Initialise fingerprint database
     localStructsList = fp.analyse_fingerprints(None)
-    # fingerprintsList, validMinutiaeList, localStructsList = \
-    #     fp.analyse_fingerprints(None)
-    
-    #databaseTuple = (fingerprintsList, validMinutiaeList, localStructsList)
-    # col1, col2, col3 = st.columns(3)
-    
-    # with col1:
-        
-    #     st.image(fingerprintsList[0][0], caption = 'Fingerprint', use_column_width = True)
-    
-    # with col2:
-        
-    #     drawMinutiae = draw_minutiae(fingerprintsList[0][0], validMinutiaeList[0])
-    #     st.image(drawMinutiae, caption = 'Fingerprint', use_column_width = True)
-        
-    # with col3:
-    #     pass
-    #     #st.image(localStructsList[0], caption = 'Fingerprint', use_column_width = True)
-   
 
-
+    # Uploade File button
     uploadedFile = st.file_uploader("Upload fingerprint image...", \
         type = ["png", "jpg", "jpeg", "tif"])
 
@@ -219,8 +197,6 @@ def main():
         
         st.success('File Successfuly Uploaded')
         ls1 = fp.analyse_fingerprints(directoryPath)
-        #targetTuple = (f1, m1, ls1)
-        #score = compare_fingerprints(databaseTuple, targetTuple)
         score = compare_fingerprints(localStructsList, ls1)
         st.write("Comparison Scores: ")
         st.dataframe(score, hide_index = True)
@@ -231,19 +207,11 @@ def main():
         
         ROCcurve = create_ROC_curve(classifier)
         st.line_chart(ROCcurve, x = "False Positive Rate", y = "True Positive Rate")
-        #st.image(f)
+
         # move the uploaded file to the fingerprint database directory
         newFilePath = os.path.join('./DB1_B - Copy', uploadedFile.name)
         os.rename(filePath, newFilePath)
-        #st.success('File Moved to DB1_B directory')
-        encodeFile = np.asarray(bytearray(uploadedFile.read()), dtype=np.uint8)
-        decodeFile = cv.imdecode(encodeFile, cv.IMREAD_GRAYSCALE)
-        #st.image(decodeFile, channels="BGR", caption='Uploaded Fingerprint', use_column_width=True)
-        #print(decodeFile.min(). decodeFile.max())
-        #analyse_target_fingerprint(decodeFile)
-        
-        
-        
+      
 if __name__ == "__main__":
     main()
     
